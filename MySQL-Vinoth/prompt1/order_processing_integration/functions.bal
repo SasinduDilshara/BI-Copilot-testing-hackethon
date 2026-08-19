@@ -1,5 +1,6 @@
 import ballerina/log;
 import ballerina/sql;
+import ballerina/time;
 import ballerinax/mysql;
 
 // Fetches the order row using primary-first, replica-fallback strategy.
@@ -45,6 +46,9 @@ function fetchCustomerWithFailover(int customerId) returns Customer|sql:NoRowsEr
 }
 
 // Fetches the order line items using primary-first, replica-fallback strategy.
+// An order with zero line items is a valid, successful result: the query
+// expression below naturally yields an empty array (not an error) when the
+// stream produces no rows, so this is returned as-is without failing.
 function fetchOrderItemsWithFailover(int orderId) returns OrderItem[]|sql:Error {
     sql:ParameterizedQuery itemsQuery = `SELECT order_item_id AS orderItemId, product_id AS productId,
         product_name AS productName, quantity AS quantity, unit_price AS unitPrice,
@@ -58,6 +62,8 @@ function fetchOrderItemsWithFailover(int orderId) returns OrderItem[]|sql:Error 
             select item;
         check itemStream.close();
         if items is OrderItem[] {
+            // Includes the zero line-item case; an empty array is a valid,
+            // successful result and must not trigger replica failover.
             return items;
         }
         lastError = items;
@@ -68,16 +74,18 @@ function fetchOrderItemsWithFailover(int orderId) returns OrderItem[]|sql:Error 
 
 // Composes the full order details (order, customer, and line items) for the
 // given order identifier.
-function getOrderDetails(int orderId) returns OrderDetails|sql:NoRowsError|sql:Error {
+function getOrderDetails(int orderId) returns OrderDetails|sql:NoRowsError|sql:Error|time:Error {
     Order orderRecord = check fetchOrderWithFailover(orderId);
     Customer customer = check fetchCustomerWithFailover(orderRecord.customerId);
     OrderItem[] lineItems = check fetchOrderItemsWithFailover(orderId);
+
+    string createdAtText = check time:civilToString(orderRecord.createdAt);
 
     OrderDetails orderDetails = {
         orderId: orderRecord.orderId,
         orderStatus: orderRecord.orderStatus,
         totalAmount: orderRecord.totalAmount,
-        createdAt: orderRecord.createdAt,
+        createdAt: createdAtText,
         customer,
         lineItems
     };

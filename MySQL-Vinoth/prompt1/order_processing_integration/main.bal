@@ -8,7 +8,7 @@ service /orders on orderServiceListener {
 
     // Retrieves an order along with its customer details and line items.
     resource function get [int orderId]() returns OrderDetails|http:NotFound|http:InternalServerError {
-        OrderDetails|sql:NoRowsError|sql:Error result = getOrderDetails(orderId);
+        OrderDetails|sql:NoRowsError|sql:Error|time:Error result = getOrderDetails(orderId);
 
         if result is OrderDetails {
             return result;
