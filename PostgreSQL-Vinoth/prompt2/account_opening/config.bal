@@ -8,3 +8,5 @@ configurable int dbPort = 5432;
 configurable string dbName = ?;
 configurable string dbUsername = ?;
 configurable string dbPassword = ?;
+
+configurable string[] lowRiskPartnerCountryCodes = [];
