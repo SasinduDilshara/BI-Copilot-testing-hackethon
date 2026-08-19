@@ -25,7 +25,10 @@ configurable string dbTrustStorePassword = ?;
 configurable string dbKeyStorePath = ?;
 configurable string dbKeyStorePassword = ?;
 
-// Connection pool sizing suitable for a long-running service.
-configurable int dbMaxOpenConnections = 10;
-configurable int dbMinIdleConnections = 2;
+// Connection pool sizing suitable for a long-running service handling
+// concurrent requests. Each of the primary and replica clients gets its own
+// pool sized with these settings since they connect to different hosts.
+configurable int dbMaxOpenConnections = 25;
+configurable int dbMinIdleConnections = 5;
 configurable decimal dbMaxConnectionLifeTimeSeconds = 1800;
+configurable decimal dbConnectionTimeoutSeconds = 30;
