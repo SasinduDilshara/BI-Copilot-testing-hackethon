@@ -9,3 +9,10 @@ configurable string reconciliationApiUrl = ?;
 
 configurable string ledgerCdcSlotName = "ledger_reconciliation_slot";
 configurable string ledgerCdcPublicationName = "ledger_cdc_pub";
+configurable decimal ledgerCdcHeartbeatIntervalSeconds = 300;
+
+configurable string alertSmtpHost = ?;
+configurable string alertSmtpUsername = ?;
+configurable string alertSmtpPassword = ?;
+configurable string alertFromAddress = ?;
+configurable string alertToAddress = ?;
