@@ -19,7 +19,10 @@ function fetchOrderWithFailover(int orderId) returns Order|sql:NoRowsError|sql:E
             return result;
         }
         lastError = result;
-        log:printWarn("Database client unavailable, attempting next data source", 'error = result);
+        // Only a generic warning is logged here; the underlying driver error is
+        // intentionally not logged as it may embed connection details such as
+        // hostnames, ports, or file paths.
+        log:printWarn("Database client unavailable, attempting next data source for order lookup");
     }
     return lastError;
 }
@@ -40,7 +43,10 @@ function fetchCustomerWithFailover(int customerId) returns Customer|sql:NoRowsEr
             return result;
         }
         lastError = result;
-        log:printWarn("Database client unavailable, attempting next data source", 'error = result);
+        // Only a generic warning is logged here; the underlying driver error is
+        // intentionally not logged as it may embed connection details such as
+        // hostnames, ports, or file paths.
+        log:printWarn("Database client unavailable, attempting next data source for customer lookup");
     }
     return lastError;
 }
@@ -67,7 +73,10 @@ function fetchOrderItemsWithFailover(int orderId) returns OrderItem[]|sql:Error 
             return items;
         }
         lastError = items;
-        log:printWarn("Database client unavailable, attempting next data source", 'error = items);
+        // Only a generic warning is logged here; the underlying driver error is
+        // intentionally not logged as it may embed connection details such as
+        // hostnames, ports, or file paths.
+        log:printWarn("Database client unavailable, attempting next data source for order line items lookup");
     }
     return lastError;
 }

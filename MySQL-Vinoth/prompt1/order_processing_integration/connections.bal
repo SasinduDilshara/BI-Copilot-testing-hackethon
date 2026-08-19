@@ -4,19 +4,38 @@ import ballerina/sql;
 import ballerinax/mysql;
 import ballerinax/mysql.driver as _;
 
+// Validated at module load time so the service fails fast with a clear,
+// specific error during startup instead of crashing later with a raw MySQL
+// driver error when the pool/clients are constructed.
+final error? dbPoolConfigValidationResult = validatePoolConfig();
+
 // Shared connection pool configuration reused across the primary and replica
 // clients so connections are pooled and reused rather than opened per request.
 // Since each client connects to a different host, each one gets its own
 // dedicated pool sized per these settings, allowing concurrent requests to be
 // served without exhausting connections.
-final sql:ConnectionPool dbConnectionPool = {
-    maxOpenConnections: dbMaxOpenConnections,
-    minIdleConnections: dbMinIdleConnections,
-    maxConnectionLifeTime: dbMaxConnectionLifeTimeSeconds,
-    connectionTimeout: dbConnectionTimeoutSeconds
-};
+final sql:ConnectionPool dbConnectionPool = buildValidatedConnectionPool();
+
+// Builds the connection pool configuration, panicking with a clear,
+// actionable message if the pool sizing configuration failed validation.
+function buildValidatedConnectionPool() returns sql:ConnectionPool {
+    error? validationResult = dbPoolConfigValidationResult;
+    if validationResult is error {
+        panic error(string `Database connection pool configuration is invalid: ${validationResult.message()}`);
+    }
+    return {
+        maxOpenConnections: dbMaxOpenConnections,
+        minIdleConnections: dbMinIdleConnections,
+        maxConnectionLifeTime: dbMaxConnectionLifeTimeSeconds,
+        connectionTimeout: dbConnectionTimeoutSeconds
+    };
+}
 
 // Certificate-based TLS with hostname (identity) verification enabled.
+// This must remain SSL_VERIFY_IDENTITY (full certificate chain validation
+// plus hostname verification) and must never be weakened to a lesser mode
+// such as SSL_VERIFY_CA (no hostname check), SSL_REQUIRED, or SSL_PREFERRED
+// (both of which allow unverified/unencrypted fallback).
 final mysql:Options dbSecureOptions = {
     ssl: {
         mode: mysql:SSL_VERIFY_IDENTITY,
@@ -74,19 +93,22 @@ final mysql:Client[] orderedDbClients = [primaryDbClient, replicaOneDbClient, re
 // requests have been drained.
 function init() {
     runtime:onGracefulStop(function() returns error? {
+        // Only a static, generic message is logged here. The underlying
+        // driver error is intentionally not logged since it may embed
+        // connection details such as hostnames, ports, or file paths.
         error? primaryCloseResult = primaryDbClient.close();
         if primaryCloseResult is error {
-            log:printError("Failed to close primary database client", 'error = primaryCloseResult);
+            log:printError("Failed to close primary database client cleanly during shutdown");
         }
 
         error? replicaOneCloseResult = replicaOneDbClient.close();
         if replicaOneCloseResult is error {
-            log:printError("Failed to close replica one database client", 'error = replicaOneCloseResult);
+            log:printError("Failed to close replica one database client cleanly during shutdown");
         }
 
         error? replicaTwoCloseResult = replicaTwoDbClient.close();
         if replicaTwoCloseResult is error {
-            log:printError("Failed to close replica two database client", 'error = replicaTwoCloseResult);
+            log:printError("Failed to close replica two database client cleanly during shutdown");
         }
     });
 }

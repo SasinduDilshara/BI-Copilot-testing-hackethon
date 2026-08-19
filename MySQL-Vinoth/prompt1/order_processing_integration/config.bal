@@ -32,3 +32,26 @@ configurable int dbMaxOpenConnections = 25;
 configurable int dbMinIdleConnections = 5;
 configurable decimal dbMaxConnectionLifeTimeSeconds = 1800;
 configurable decimal dbConnectionTimeoutSeconds = 30;
+
+// Validates the connection pool sizing configuration before it is used to
+// build the shared connection pool. Returns a specific, descriptive error
+// when the configuration is invalid so the service fails fast at startup
+// instead of surfacing an opaque driver-level error later.
+function validatePoolConfig() returns error? {
+    if dbMaxOpenConnections <= 0 {
+        return error(string `Invalid database configuration: dbMaxOpenConnections must be a positive value, got ${dbMaxOpenConnections}`);
+    }
+    if dbMinIdleConnections < 0 {
+        return error(string `Invalid database configuration: dbMinIdleConnections must not be negative, got ${dbMinIdleConnections}`);
+    }
+    if dbMinIdleConnections > dbMaxOpenConnections {
+        return error(string `Invalid database configuration: dbMinIdleConnections (${dbMinIdleConnections}) must not exceed dbMaxOpenConnections (${dbMaxOpenConnections})`);
+    }
+    if dbMaxConnectionLifeTimeSeconds < 0d {
+        return error(string `Invalid database configuration: dbMaxConnectionLifeTimeSeconds must not be negative, got ${dbMaxConnectionLifeTimeSeconds}`);
+    }
+    if dbConnectionTimeoutSeconds <= 0d {
+        return error(string `Invalid database configuration: dbConnectionTimeoutSeconds must be a positive value, got ${dbConnectionTimeoutSeconds}`);
+    }
+    return ();
+}
