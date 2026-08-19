@@ -15,6 +15,11 @@ service on ledgerCdcListener {
         check reconcileEntry(entryChange);
     }
 
+    remote function onDelete(record {} beforeEntry, string tableName) returns error? {
+        LedgerEntryChangeEvent deletedEntry = check beforeEntry.cloneWithType();
+        check auditDeletedEntry(deletedEntry);
+    }
+
     remote function onError(cdc:Error cdcError) {
         log:printError("Error occurred while processing ledger_entries CDC event", 'error = cdcError);
         error? alertResult = sendCdcErrorAlert(cdcError);

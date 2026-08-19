@@ -40,3 +40,14 @@ function deadLetterEntry(string entryId, string errorReason) returns error? {
     sql:ExecutionResult _ = check ledgerClient->execute(
         `INSERT INTO ledger_reconciliation_dlq (entry_id, error_reason) VALUES (${entryId}, ${errorReason})`);
 }
+
+# Records a deleted ledger entry into the audit table so deletes are traceable
+# instead of being silently dropped.
+function auditDeletedEntry(LedgerEntryChangeEvent deletedEntry) returns error? {
+    string entryId = deletedEntry.entry_id;
+    log:printWarn("Ledger entry deleted, writing to audit table", entryId = entryId);
+    sql:ExecutionResult _ = check ledgerClient->execute(
+        `INSERT INTO ledger_audit (entry_id, account_id, amount, entry_type, created_at)
+         VALUES (${entryId}, ${deletedEntry.account_id}, ${deletedEntry.amount}, ${deletedEntry.entry_type},
+                 ${deletedEntry.created_at})`);
+}
