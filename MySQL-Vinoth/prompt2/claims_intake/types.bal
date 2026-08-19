@@ -14,3 +14,9 @@ public type AdjudicationRequest record {|
     decimal billedAmount;
     decimal coverageLimit;
 |};
+
+public type Policyholder record {|
+    string policyNumber;
+    decimal coverageLimit;
+    boolean isActive;
+|};
