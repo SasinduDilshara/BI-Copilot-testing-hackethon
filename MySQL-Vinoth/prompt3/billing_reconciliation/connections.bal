@@ -15,3 +15,10 @@ final mysql:Client anomalyScanClient = check new (
     options = {...buildDbOptions()},
     connectionPool = {maxOpenConnections: 5, minIdleConnections: 1, maxConnectionLifeTime: 1800}
 );
+
+// Used by the ad-hoc audit automation
+final mysql:Client adhocAuditClient = check new (
+    host = dbHost, port = dbPort, user = dbUser, password = dbPassword, database = dbName,
+    options = {...buildDbOptions()},
+    connectionPool = {maxOpenConnections: 3, minIdleConnections: 1, maxConnectionLifeTime: 1800}
+);
