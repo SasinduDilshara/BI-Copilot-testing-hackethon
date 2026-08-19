@@ -14,8 +14,7 @@ service /telemetry on new http:Listener(servicePort) {
             return <IngestValidationError>{message: "Payload must contain at least one reading"};
         }
 
-        json rawPayload = readings.toJson();
-        error? persistResult = persistReadingsWithRetry(readings, rawPayload);
+        error? persistResult = persistReadings(readings);
         if persistResult is error {
             log:printError("Failed to persist telemetry readings", 'error = persistResult);
             return <http:InternalServerError>{
