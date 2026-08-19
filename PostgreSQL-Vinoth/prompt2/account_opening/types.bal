@@ -13,3 +13,8 @@ public type IdentityCheckRequest record {|
     string dateOfBirth;
     string countryCode;
 |};
+
+public type AmlRiskResult record {|
+    int riskScore;
+    boolean isFlagged;
+|};
