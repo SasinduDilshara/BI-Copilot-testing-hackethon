@@ -1,0 +1,9 @@
+[package]
+org = "vinoth"
+name = "claims_intake"
+version = "0.1.0"
+distribution = "2201.13.5"
+title = "claims_intake"
+
+[build-options]
+sticky = true
