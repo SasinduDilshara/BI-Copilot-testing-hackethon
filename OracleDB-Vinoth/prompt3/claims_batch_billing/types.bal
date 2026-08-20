@@ -10,3 +10,8 @@ public type DeadLetterClaimLine record {|
     *ClaimLine;
     string failureReason;
 |};
+
+public type PendingClaimLinesPage record {|
+    ClaimLine[] items;
+    string? nextPageToken;
+|};
