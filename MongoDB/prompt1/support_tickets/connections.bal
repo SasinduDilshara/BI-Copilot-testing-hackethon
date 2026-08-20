@@ -33,7 +33,7 @@ final mongodb:Database supportDatabase = check getSupportDatabase();
 
 final mongodb:Collection supportTicketsCollection = check getCollection(supportDatabase, "support_tickets");
 
-final mongodb:Collection ticketClosureAuditCollection = check getCollection(supportDatabase, "ticket_closure_audit");
+final mongodb:Collection ticketAuditLogCollection = check getCollection(supportDatabase, "ticket_audit_log");
 
 final mongodb:Collection chatEventsDlqCollection = check getCollection(supportDatabase, "chat_events_dlq");
 

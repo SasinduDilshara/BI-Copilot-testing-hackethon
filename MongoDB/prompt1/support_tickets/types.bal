@@ -19,16 +19,23 @@ public type ChatMessage record {|
     string timestamp;
 |};
 
-// Represents a compliance audit record written when a ticket is closed.
+// Represents a compliance audit record written to the standalone ticket_audit_log
+// collection when a ticket is closed. This collection is kept separate from the ticket
+// document itself since it is subject to its own retention / legal-hold policies.
 public type TicketClosureAudit record {|
     string auditId;
     string ticketId;
     string closedBy;
     string closedAt;
-    // Status of the two-step write: PENDING until the ticket update is confirmed,
-    // COMMITTED once both writes are known to be consistent, or ROLLED_BACK if the
-    // ticket update failed and this audit record was compensated for.
-    string status;
+|};
+
+// Projection of a ticket document used during audit-write reconciliation: just enough
+// fields to know which audit record still needs to be (re)written.
+public type TicketAuditPointer record {|
+    string ticketId;
+    string? auditId = ();
+    string? closedBy = ();
+    string? closedAt = ();
 |};
 
 // Represents a chat event that could not be persisted after exhausting retries.

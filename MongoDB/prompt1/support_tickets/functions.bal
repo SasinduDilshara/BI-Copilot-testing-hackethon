@@ -67,34 +67,33 @@ function appendMessageToTicket(ChatEvent chatEvent) returns error? {
     return ();
 }
 
-// Handles ticket closure together with the compliance audit record so that the two writes
-// cannot end up permanently out of sync even if one call fails partway through.
+// Handles ticket closure together with the compliance audit record, which is now written
+// to its own standalone ticket_audit_log collection (separate retention / legal-hold
+// policies) rather than embedded in the ticket document.
 //
-// Strategy: the audit record is written first in a PENDING state. Only after the ticket
-// closure update succeeds is the audit record marked COMMITTED. If the ticket update fails,
-// the audit record is compensated (rolled back / removed) with its own retries so a
-// closure is never recorded without the matching ticket state, and a ticket is never left
-// closed without a durable audit trail. If the compensating rollback itself cannot be
-// completed, the event is routed to the dead-letter collection instead of being dropped
-// so the inconsistency is never silently lost.
+// IMPORTANT GUARANTEE: with two independent writes to two separate collections and no
+// multi-document transaction support in the connector, we CANNOT guarantee atomicity
+// across the ticket update and the audit insert. If the process crashes between the two
+// writes, the ticket and its audit trail can be left out of sync. What we DO guarantee is
+// detectability:
+//   1. The ticket update happens FIRST and, in the same atomic operation, stamps the
+//      ticket with auditStatus: "PENDING" and the auditId that will be used for the audit
+//      record. This ordering is deliberate: a crash before this point means the closure
+//      never happened at all (nothing to reconcile). A crash after it means the ticket is
+//      durably marked as closed AND carries a breadcrumb that its audit record is still
+//      outstanding.
+//   2. Only after the ticket update is confirmed do we attempt to insert the audit
+//      record. If that succeeds, the ticket is flipped to auditStatus: "RECORDED".
+//   3. If the audit insert fails even after retries, we deliberately do NOT drop the
+//      event and do NOT send it to the DLQ (the ticket closure itself is valid and
+//      already durable) — we leave auditStatus: "PENDING" on the ticket so it can be
+//      found and reconciled later by reconcilePendingAuditWrites().
+// This means we never produce a phantom audit record for a closure that did not happen
+// (false positive), at the cost of a possible short window where a closed ticket's audit
+// record has not been written yet (a detectable, reconcilable false negative).
 function closeTicketWithAudit(ChatEvent chatEvent) returns error? {
     string auditId = uuid:createRandomUuid();
     string closedAt = time:utcToString(time:utcNow());
-
-    TicketClosureAudit audit = {
-        auditId: auditId,
-        ticketId: chatEvent.ticketId,
-        closedBy: chatEvent.sender,
-        closedAt: closedAt,
-        status: "PENDING"
-    };
-
-    error? auditWriteResult = executeWithRetry(function() returns error? {
-        return supportTicketsAuditInsert(audit);
-    });
-    if auditWriteResult is error {
-        return auditWriteResult;
-    }
 
     mongodb:Update closureUpdate = {
         "push": {"messages": {
@@ -105,7 +104,13 @@ function closeTicketWithAudit(ChatEvent chatEvent) returns error? {
             timestamp: chatEvent.timestamp
         }},
         inc: {"messageCount": 1},
-        set: {"status": "CLOSED", "closedBy": chatEvent.sender, "closedAt": closedAt, "lastAuditId": auditId},
+        set: {
+            "status": "CLOSED",
+            "closedBy": chatEvent.sender,
+            "closedAt": closedAt,
+            "auditId": auditId,
+            "auditStatus": "PENDING"
+        },
         setOnInsert: {"ticketId": chatEvent.ticketId, "customerId": chatEvent.customerId}
     };
 
@@ -121,50 +126,120 @@ function closeTicketWithAudit(ChatEvent chatEvent) returns error? {
         return ();
     });
 
-    if ticketUpdateResult is () {
-        error? commitResult = executeWithRetry(function() returns error? {
-            return markAuditStatus(auditId, "COMMITTED");
-        });
-        if commitResult is error {
-            // Ticket is closed correctly but the audit record could not be marked
-            // COMMITTED. The audit record remains discoverable (linked via lastAuditId)
-            // so it is not lost; log loudly for reconciliation.
-            log:printError("ticket closed but audit record could not be finalized", 'error = commitResult, auditId = auditId, ticketId = chatEvent.ticketId);
-        }
+    // Ticket closure failed after retries: nothing was durably recorded, so this event
+    // is handled the same way as any other failed write (falls through to the DLQ).
+    if ticketUpdateResult is error {
+        return ticketUpdateResult;
+    }
+
+    TicketClosureAudit audit = {
+        auditId: auditId,
+        ticketId: chatEvent.ticketId,
+        closedBy: chatEvent.sender,
+        closedAt: closedAt
+    };
+
+    error? auditWriteResult = executeWithRetry(function() returns error? {
+        return ticketAuditLogInsert(audit);
+    });
+
+    if auditWriteResult is error {
+        // The ticket is correctly closed but the audit record could not be written.
+        // Leave auditStatus: "PENDING" in place (already durable from the ticket update
+        // above) so this ticket is picked up by reconcilePendingAuditWrites() instead of
+        // the inconsistency being silently lost.
+        log:printError("ticket closed but audit record could not be written; left PENDING for reconciliation",
+                'error = auditWriteResult, auditId = auditId, ticketId = chatEvent.ticketId);
         return ();
     }
 
-    // Ticket closure failed after retries: compensate by rolling back the audit record so
-    // it never claims a closure that never actually happened.
-    error? rollbackResult = executeWithRetry(function() returns error? {
-        return markAuditStatus(auditId, "ROLLED_BACK");
-    });
-    if rollbackResult is error {
-        // Even the compensating rollback failed: do not drop this silently, send the
-        // original event to the dead-letter collection for manual reconciliation.
-        log:printError("failed to roll back audit record after ticket closure failure", 'error = rollbackResult, auditId = auditId, ticketId = chatEvent.ticketId);
-        return rollbackResult;
+    error? markResult = markTicketAuditRecorded(chatEvent.ticketId, auditId);
+    if markResult is error {
+        // The audit record itself is safely written; only the ticket's bookkeeping flag
+        // could not be flipped. Reconciliation will find this ticket still PENDING, check
+        // ticket_audit_log, discover the record already exists, and simply flip the flag
+        // rather than write a duplicate audit record.
+        log:printError("audit record written but ticket auditStatus could not be updated to RECORDED",
+                'error = markResult, auditId = auditId, ticketId = chatEvent.ticketId);
     }
-    return ticketUpdateResult;
+    return ();
 }
 
-function supportTicketsAuditInsert(TicketClosureAudit audit) returns error? {
-    error? result = ticketClosureAuditCollection->insertOne(audit);
+function ticketAuditLogInsert(TicketClosureAudit audit) returns error? {
+    error? result = ticketAuditLogCollection->insertOne(audit);
     if result is error {
         return result;
     }
     return ();
 }
 
-function markAuditStatus(string auditId, string status) returns error? {
+function markTicketAuditRecorded(string ticketId, string auditId) returns error? {
     mongodb:Update update = {
-        set: {"status": status}
+        set: {"auditStatus": "RECORDED"}
     };
-    mongodb:UpdateResult|error result = ticketClosureAuditCollection->updateOne({"auditId": auditId}, update);
+    mongodb:UpdateResult|error result = supportTicketsCollection->updateOne(
+            {"ticketId": ticketId, "auditId": auditId},
+            update
+    );
     if result is error {
         return result;
     }
     return ();
+}
+
+// Reconciliation sweep: finds tickets whose audit write did not complete (auditStatus
+// still "PENDING") and retries writing their audit record to ticket_audit_log. Safe to
+// call repeatedly (e.g. from a scheduled job) since it checks for an existing audit
+// record before inserting, so a ticket is never given two audit entries for the same
+// closure. Returns the number of tickets successfully reconciled.
+function reconcilePendingAuditWrites() returns int|error {
+    stream<TicketAuditPointer, error?> pendingTickets =
+        check supportTicketsCollection->find({"auditStatus": "PENDING"}, targetType = TicketAuditPointer);
+
+    int reconciledCount = 0;
+    error? streamError = pendingTickets.forEach(function(TicketAuditPointer ticketPointer) {
+        error? reconcileResult = reconcileSingleTicket(ticketPointer);
+        if reconcileResult is error {
+            log:printError("failed to reconcile pending audit write", 'error = reconcileResult, ticketId = ticketPointer.ticketId);
+        } else {
+            reconciledCount += 1;
+        }
+    });
+    check pendingTickets.close();
+    if streamError is error {
+        return streamError;
+    }
+    return reconciledCount;
+}
+
+function reconcileSingleTicket(TicketAuditPointer ticketPointer) returns error? {
+    string? auditId = ticketPointer.auditId;
+    string? closedBy = ticketPointer.closedBy;
+    string? closedAt = ticketPointer.closedAt;
+    if auditId is () || closedBy is () || closedAt is () {
+        return error(string `ticket ${ticketPointer.ticketId} is missing closure fields required for reconciliation`);
+    }
+
+    TicketClosureAudit|error? existingAudit = ticketAuditLogCollection->findOne(
+            {"auditId": auditId},
+            targetType = TicketClosureAudit
+    );
+    if existingAudit is error {
+        return existingAudit;
+    }
+    if existingAudit is () {
+        TicketClosureAudit audit = {
+            auditId: auditId,
+            ticketId: ticketPointer.ticketId,
+            closedBy: closedBy,
+            closedAt: closedAt
+        };
+        error? insertResult = ticketAuditLogInsert(audit);
+        if insertResult is error {
+            return insertResult;
+        }
+    }
+    return markTicketAuditRecorded(ticketPointer.ticketId, auditId);
 }
 
 // Writes an event that could not be persisted after exhausting retries to the dead-letter
