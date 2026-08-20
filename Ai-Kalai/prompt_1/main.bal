@@ -16,9 +16,13 @@ service /support on new http:Listener(9090) {
             };
         }
 
+        boolean needsReview = triageResult.confidence < confidenceThreshold;
+        TicketTriageStatus status = needsReview ? "needs_review" : "completed";
+
         return {
             ticketId: ticket.id,
-            category: triageResult.category,
+            status: status,
+            category: needsReview ? () : triageResult.category,
             urgency: triageResult.urgency,
             summary: triageResult.summary,
             suggestedReply: triageResult.suggestedReply,

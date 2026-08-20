@@ -1,5 +1,9 @@
 import ballerina/ai;
 
+// Minimum agent confidence (0.0-1.0) required to automatically recommend a final category.
+// Triage results below this threshold are marked as needs_review instead.
+configurable decimal confidenceThreshold = 0.6;
+
 final ai:ModelProvider supportTicketModel = check ai:getDefaultModelProvider();
 
 // The installed ballerina/ai module does not ship a built-in, zero-infrastructure

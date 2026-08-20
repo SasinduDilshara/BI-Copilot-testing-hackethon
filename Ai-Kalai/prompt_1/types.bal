@@ -1,6 +1,10 @@
 // Category of a support ticket.
 public type TicketCategory "billing"|"technical"|"account"|"other";
 
+// Triage status of a support ticket. "needs_review" indicates the agent's confidence was below
+// the configured confidenceThreshold, so no final category is automatically recommended.
+public type TicketTriageStatus "completed"|"needs_review";
+
 // Strongly typed support ticket submitted by a customer.
 public type SupportTicket record {|
     string id;
@@ -32,7 +36,9 @@ type EmbeddedSupportArticle record {|
     float[] embedding;
 |};
 
-// Structured triage result produced by the support ticket agent.
+// Structured triage result produced by the support ticket agent, as parsed from the agent's
+// raw JSON answer. The category here is always the agent's raw classification; whether it is
+// surfaced to the caller is decided separately based on the confidenceThreshold.
 public type TicketTriageResult record {|
     TicketCategory category;
     int urgency;
@@ -46,7 +52,8 @@ public type TicketTriageResult record {|
 // Strongly typed JSON response returned by the support ticket triage endpoint.
 public type TicketTriageResponse record {|
     string ticketId;
-    TicketCategory category;
+    TicketTriageStatus status;
+    TicketCategory category?;
     int urgency;
     string summary;
     string suggestedReply;

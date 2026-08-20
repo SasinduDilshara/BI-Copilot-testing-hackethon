@@ -237,6 +237,13 @@ function triageSupportTicket(SupportTicket ticket) returns TicketTriageResult|er
     string agentAnswer = check supportTicketAgent.run(triageQuery, sessionId = ticket.id);
     string jsonAnswer = extractJsonObject(agentAnswer);
     TicketTriageResult triageResult = check jsonAnswer.fromJsonStringWithType(TicketTriageResult);
+
+    decimal confidence = triageResult.confidence;
+    if confidence < 0.0d || confidence > 1.0d {
+        return error("Agent returned an out-of-range confidence value: " + confidence.toString() +
+            ". Expected a value between 0.0 and 1.0.");
+    }
+
     return triageResult;
 }
 
