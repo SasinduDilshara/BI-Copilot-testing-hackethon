@@ -1,0 +1,9 @@
+[package]
+org = "vinoth"
+name = "settlement_reconciliation"
+version = "0.1.0"
+distribution = "2201.13.5"
+title = "settlement_reconciliation"
+
+[build-options]
+sticky = true
