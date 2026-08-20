@@ -1,0 +1,3 @@
+[workspace]
+title = "Ai-Kalai"
+packages = ["prompt_1"]
