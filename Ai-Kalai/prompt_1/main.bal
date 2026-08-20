@@ -27,4 +27,26 @@ service /support on new http:Listener(9090) {
             referencedArticleTitle: triageResult?.referencedArticleTitle
         };
     }
+
+    # Accepts a follow-up question about a previously triaged ticket and answers it using the
+    # supportTicketAgent, continuing that ticket's own conversation.
+    #
+    # + ticketId - the ID of the ticket the follow-up question relates to
+    # + followUpQuestion - the follow-up question to ask
+    # + return - the follow-up answer, or an error if answering fails
+    resource function post tickets/[string ticketId]/questions(@http:Payload FollowUpQuestionRequest followUpQuestion)
+        returns FollowUpQuestionResponse|http:InternalServerError {
+        string|error answer = answerFollowUpQuestion(ticketId, followUpQuestion.question);
+
+        if answer is error {
+            return <http:InternalServerError>{
+                body: {message: "Failed to answer follow-up question: " + answer.message()}
+            };
+        }
+
+        return {
+            ticketId: ticketId,
+            answer: answer
+        };
+    }
 }

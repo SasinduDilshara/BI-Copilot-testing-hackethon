@@ -33,11 +33,16 @@ final ai:SystemPrompt supportTicketAgentSystemPrompt = {
         "Always respond truthfully and only with information relevant to the ticket."
 };
 
+// Conversation memory keyed by sessionId. Each triage/follow-up call passes the ticket ID as
+// the sessionId (see triageSupportTicket and answerFollowUpQuestion in functions.bal), so
+// conversation history for one ticket never leaks into another ticket's conversation.
+final ai:Memory supportTicketAgentMemory = check new ai:ShortTermMemory(check new ai:InMemoryShortTermMemoryStore(20));
+
 final ai:Agent supportTicketAgent = check new (
     systemPrompt = supportTicketAgentSystemPrompt,
     model = supportTicketModel,
     tools = [findRelevantSupportArticle, searchSupportArticles],
-    memory = ()
+    memory = supportTicketAgentMemory
 );
 
 // Logged lazily (on first use, see functions.bal) rather than in a module init() function,

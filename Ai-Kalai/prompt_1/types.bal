@@ -54,3 +54,14 @@ public type TicketTriageResponse record {|
     string referencedArticleId?;
     string referencedArticleTitle?;
 |};
+
+// A follow-up question submitted by a customer or agent about a previously triaged ticket.
+public type FollowUpQuestionRequest record {|
+    string question;
+|};
+
+// Strongly typed JSON response containing the answer to a follow-up question about a ticket.
+public type FollowUpQuestionResponse record {|
+    string ticketId;
+    string answer;
+|};

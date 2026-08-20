@@ -240,6 +240,19 @@ function triageSupportTicket(SupportTicket ticket) returns TicketTriageResult|er
     return triageResult;
 }
 
+# Answers a follow-up question about a previously triaged ticket, using the ticket ID as the
+# conversation (session) key so the agent recalls the earlier triage conversation for that
+# specific ticket. Conversations for different ticket IDs are kept isolated since each uses a
+# distinct sessionId.
+#
+# + ticketId - the ID of the ticket the follow-up question relates to
+# + question - the follow-up question to ask the agent
+# + return - the agent's answer, or an error if the agent invocation fails
+function answerFollowUpQuestion(string ticketId, string question) returns string|error {
+    string agentAnswer = check supportTicketAgent.run(question, sessionId = ticketId);
+    return agentAnswer;
+}
+
 # Extracts the JSON object substring from a raw text response, stripping any surrounding
 # markdown code fences or extraneous text.
 #
