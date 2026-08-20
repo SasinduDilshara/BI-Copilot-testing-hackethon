@@ -1,5 +1,17 @@
 
+import ballerina/observe;
 import ballerinax/mongodb;
+
+final observe:Counter duplicateScoreRaceCounter = new (
+    "arcade_leaderboard_duplicate_score_race_total",
+    desc = "Number of high score submissions that hit the unique playerId+levelId index and were treated as an expected concurrent-write race"
+);
+
+function initDuplicateScoreRaceCounter() returns error? {
+    check duplicateScoreRaceCounter.register();
+}
+
+final error? duplicateScoreRaceCounterInitResult = initDuplicateScoreRaceCounter();
 
 final mongodb:Client mongoClient = check new ({
     connection: {

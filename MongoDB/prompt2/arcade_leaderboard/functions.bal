@@ -28,6 +28,7 @@ function recordHighScore(ScoreSubmission submission) returns error? {
             // Two concurrent submissions raced the upsert and both matched the
             // unique compound index; the score is already persisted by the
             // other request, so this is an expected outcome, not a failure.
+            duplicateScoreRaceCounter.increment();
             log:printInfo(string `Duplicate high score submission treated as expected race for ${submission.playerId}/${submission.levelId}`);
             return;
         }
