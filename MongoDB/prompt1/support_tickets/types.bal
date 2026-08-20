@@ -51,3 +51,20 @@ public type ChatEventAck record {|
     string ticketId;
     string status;
 |};
+
+// Request to explicitly create a new support ticket before any chat event can attach to it.
+public type TicketCreateRequest record {|
+    string ticketId;
+    string customerId;
+|};
+
+// Response returned once a ticket has been created.
+public type TicketCreateAck record {|
+    string ticketId;
+    string status;
+|};
+
+// Minimal projection used to check for a ticket's existence without pulling the whole document.
+public type TicketExistencePointer record {|
+    string ticketId;
+|};

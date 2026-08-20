@@ -39,8 +39,39 @@ function isTransientError(error err) returns boolean {
     return true;
 }
 
-// Appends a chat message onto the matching ticket document, creating the ticket via upsert
-// if it does not already exist, and atomically bumps the ticket's messageCount.
+// Creates a new support ticket explicitly. Tickets must be created through this function
+// (exposed via POST /tickets/create) before any chat event can attach to them — chat
+// events no longer implicitly create tickets via upsert.
+function createTicket(TicketCreateRequest ticketCreateRequest) returns error? {
+    record {|string ticketId; string customerId; string status; int messageCount; anydata[] messages;|} ticketDocument = {
+        ticketId: ticketCreateRequest.ticketId,
+        customerId: ticketCreateRequest.customerId,
+        status: "OPEN",
+        messageCount: 0,
+        messages: []
+    };
+    error? result = supportTicketsCollection->insertOne(ticketDocument);
+    if result is error {
+        return result;
+    }
+    return ();
+}
+
+// Checks whether a ticket document already exists for the given ticket ID.
+function ticketExists(string ticketId) returns boolean|error {
+    TicketExistencePointer|error? existingTicket = supportTicketsCollection->findOne(
+            {"ticketId": ticketId},
+            targetType = TicketExistencePointer
+    );
+    if existingTicket is error {
+        return existingTicket;
+    }
+    return existingTicket is TicketExistencePointer;
+}
+
+// Appends a chat message onto the matching ticket document and atomically bumps the
+// ticket's messageCount. The ticket must already exist — callers are expected to have
+// verified existence beforehand; no upsert is performed here.
 function appendMessageToTicket(ChatEvent chatEvent) returns error? {
     ChatMessage chatMessage = {
         customerId: chatEvent.customerId,
@@ -52,14 +83,12 @@ function appendMessageToTicket(ChatEvent chatEvent) returns error? {
 
     mongodb:Update update = {
         "push": {"messages": chatMessage.toJson()},
-        inc: {"messageCount": 1},
-        setOnInsert: {"ticketId": chatEvent.ticketId, "customerId": chatEvent.customerId, "status": "OPEN"}
+        inc: {"messageCount": 1}
     };
 
     mongodb:UpdateResult|error updateResult = supportTicketsCollection->updateOne(
             {"ticketId": chatEvent.ticketId},
-            update,
-            {upsert: true}
+            update
     );
     if updateResult is error {
         return updateResult;
@@ -110,15 +139,13 @@ function closeTicketWithAudit(ChatEvent chatEvent) returns error? {
             "closedAt": closedAt,
             "auditId": auditId,
             "auditStatus": "PENDING"
-        },
-        setOnInsert: {"ticketId": chatEvent.ticketId, "customerId": chatEvent.customerId}
+        }
     };
 
     error? ticketUpdateResult = executeWithRetry(function() returns error? {
         mongodb:UpdateResult|error result = supportTicketsCollection->updateOne(
                 {"ticketId": chatEvent.ticketId},
-                closureUpdate,
-                {upsert: true}
+                closureUpdate
         );
         if result is error {
             return result;
@@ -258,11 +285,39 @@ function writeToDeadLetterQueue(ChatEvent chatEvent, string failureReason) retur
     return ();
 }
 
-// Processes a single chat event end-to-end: appends the message (and handles ticket
-// closure with its compliance audit record when applicable), retrying transient failures
-// with exponential backoff, and finally falling back to the dead-letter collection so no
-// message is ever silently dropped.
+// Distinct error type used to signal that a chat event referenced a ticket ID that does
+// not exist. This is not a transient condition, so it must never be retried.
+public type TicketNotFoundError distinct error;
+
+// Processes a single chat event end-to-end. A chat event may only attach to a ticket that
+// was already created explicitly via POST /tickets/create — if the referenced ticket does
+// not exist, the event is rejected immediately (no retries, since this is not a transient
+// failure) and routed straight to the dead-letter collection. Otherwise, the message is
+// appended (or the ticket is closed along with its compliance audit record), retrying
+// transient failures with exponential backoff, and finally falling back to the
+// dead-letter collection so no message is ever silently dropped.
 function processChatEvent(ChatEvent chatEvent) returns error? {
+    boolean|error existenceCheckResult = ticketExists(chatEvent.ticketId);
+    if existenceCheckResult is error {
+        log:printError("failed to verify ticket existence, routing to dead-letter queue",
+                'error = existenceCheckResult, ticketId = chatEvent.ticketId);
+        return writeToDeadLetterQueue(chatEvent, existenceCheckResult.message());
+    }
+
+    if !existenceCheckResult {
+        TicketNotFoundError notFoundError = error TicketNotFoundError(
+                string `ticket ${chatEvent.ticketId} does not exist; create it via POST /tickets/create first`);
+        log:printWarn("chat event references unknown ticket, rejecting without retry",
+                ticketId = chatEvent.ticketId);
+        error? dlqResult = writeToDeadLetterQueue(chatEvent, notFoundError.message());
+        if dlqResult is error {
+            log:printError("failed to write rejected chat event to dead-letter queue",
+                    'error = dlqResult, ticketId = chatEvent.ticketId);
+            return dlqResult;
+        }
+        return notFoundError;
+    }
+
     error? processingResult;
     if chatEvent.ticketClosed {
         processingResult = closeTicketWithAudit(chatEvent);
