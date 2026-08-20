@@ -18,6 +18,16 @@ public type WorkOrderCompletionEvent record {|
     PartConsumed[] partsConsumed;
 |};
 
+// Compensating message published to the inventory service so it can decrement
+// stock asynchronously. idempotencyKey is derived deterministically from the
+// work order ID so that redelivering/retrying the same event can never cause
+// the inventory service to double-decrement.
+public type DecrementStockMessage record {|
+    string idempotencyKey;
+    string workOrderId;
+    PartConsumed[] partsConsumed;
+|};
+
 // Response returned when the completion event was persisted successfully.
 public type CompletionAccepted record {|
     string workOrderId;

@@ -1,7 +1,8 @@
+import ballerinax/kafka;
 import ballerinax/mssql;
 import ballerinax/mssql.driver as _;
 
-// Shared secure-socket configuration: encryption is enforced and the server
+// Secure-socket configuration: encryption is enforced and the server
 // certificate is validated against the configured truststore instead of
 // accepting the driver defaults (trustServerCertificate is left false).
 final mssql:Options mssqlSecureOptions = {
@@ -12,14 +13,14 @@ final mssql:Options mssqlSecureOptions = {
             path: sqlServerTrustStorePath,
             password: sqlServerTrustStorePassword
         }
-    },
-    // Both clients participate in the same distributed (XA) transaction, so
-    // each connection must be backed by an XA datasource.
-    useXADatasource: true
+    }
 };
 
-// Client for the work_order_completions table. No fixed port is supplied -
-// the named instance is resolved dynamically via SQL Browser.
+// Client for the work-order database (work_order_completions, outbox, and DLQ
+// tables). This is the only database touched directly by this service - no
+// distributed/XA transaction is required since parts_inventory is now updated
+// asynchronously by the inventory service via a queued message. No fixed port
+// is supplied - the named instance is resolved dynamically via SQL Browser.
 final mssql:Client workOrdersDbClient = check new (
     host = sqlServerHost,
     user = sqlServerUser,
@@ -29,12 +30,12 @@ final mssql:Client workOrdersDbClient = check new (
     options = mssqlSecureOptions
 );
 
-// Client for the parts_inventory database on the same named instance.
-final mssql:Client partsInventoryDbClient = check new (
-    host = sqlServerHost,
-    user = sqlServerUser,
-    password = sqlServerPassword,
-    database = partsInventoryDatabase,
-    instance = sqlServerInstance,
-    options = mssqlSecureOptions
-);
+// Producer used to publish compensating decrement-stock messages to the
+// inventory service. enableIdempotence guards against duplicate delivery
+// caused by producer-side retries at the Kafka client/broker level.
+final kafka:Producer decrementStockProducer = check new (kafkaBootstrapServers, {
+    clientId: "work-orders-decrement-stock-producer",
+    acks: "all",
+    retryCount: 3,
+    enableIdempotence: true
+});

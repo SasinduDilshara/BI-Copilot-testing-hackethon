@@ -7,7 +7,6 @@ configurable string sqlServerUser = ?;
 configurable string sqlServerPassword = ?;
 
 configurable string workOrdersDatabase = "work_orders";
-configurable string partsInventoryDatabase = "parts_inventory";
 
 // Truststore used to validate the SQL Server certificate. Since the connection
 // travels over a corporate network that is not fully trusted, encryption is
@@ -16,6 +15,11 @@ configurable string partsInventoryDatabase = "parts_inventory";
 configurable string sqlServerTrustStorePath = ?;
 configurable string sqlServerTrustStorePassword = ?;
 
-// Retry configuration for the distributed transaction.
+// Retry configuration for the local work-order transaction.
 configurable int maxTransactionRetries = 3;
 configurable decimal retryBaseDelaySeconds = 0.5;
+
+// Kafka cluster that carries compensating decrement-stock messages to the
+// inventory service.
+configurable string kafkaBootstrapServers = "localhost:9092";
+configurable string decrementStockTopic = "inventory.decrement-stock";
