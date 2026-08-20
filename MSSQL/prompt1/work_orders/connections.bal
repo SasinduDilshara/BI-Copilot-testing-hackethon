@@ -1,3 +1,4 @@
+import ballerina/http;
 import ballerinax/kafka;
 import ballerinax/mssql;
 import ballerinax/mssql.driver as _;
@@ -39,3 +40,7 @@ final kafka:Producer decrementStockProducer = check new (kafkaBootstrapServers, 
     retryCount: 3,
     enableIdempotence: true
 });
+
+// Client used to page on-call by calling the existing incidents webhook when
+// the work-order completion transaction fails even after retries.
+final http:Client incidentsServiceClient = check new (incidentsServiceUrl);

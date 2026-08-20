@@ -23,3 +23,7 @@ configurable decimal retryBaseDelaySeconds = 0.5;
 // inventory service.
 configurable string kafkaBootstrapServers = "localhost:9092";
 configurable string decrementStockTopic = "inventory.decrement-stock";
+
+// Base URL of the existing incidents webhook that pages on-call when the
+// work-order completion transaction fails even after retries.
+configurable string incidentsServiceUrl = ?;

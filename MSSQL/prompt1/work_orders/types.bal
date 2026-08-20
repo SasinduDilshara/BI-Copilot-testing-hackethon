@@ -28,24 +28,49 @@ public type DecrementStockMessage record {|
     PartConsumed[] partsConsumed;
 |};
 
+// Payload sent to the existing /incidents/report webhook so it can page
+// on-call when the work-order completion transaction fails even after retries.
+public type IncidentReport record {|
+    string workOrderId;
+    string technicianId;
+    string rawEvent;
+    string errorMessage;
+|};
+
 // Response returned when the completion event was persisted successfully.
 public type CompletionAccepted record {|
     string workOrderId;
-    string status;
+    "COMPLETED" status;
 |};
 
 // Response returned when the event could not be persisted even after retries,
-// but was safely written to the dead-letter queue.
+// but an incident was successfully reported to page on-call.
+public type CompletionIncidentReported record {|
+    string workOrderId;
+    "INCIDENT_REPORTED" status;
+    string reason;
+|};
+
+// Response returned when the event could not be persisted even after retries,
+// the incident webhook call itself also failed, and the event was instead
+// written to the dead-letter queue as a last resort.
 public type CompletionDeadLettered record {|
     string workOrderId;
-    string status;
+    "DEAD_LETTERED" status;
     string reason;
 |};
 
 // Internal outcome markers for processWorkOrderCompletion.
 type CompletionPersisted record {|
+    "PERSISTED" outcome;
+|};
+
+type CompletionReportedAsIncident record {|
+    "INCIDENT_REPORTED" outcome;
+    error cause;
 |};
 
 type CompletionSentToDlq record {|
+    "DEAD_LETTERED" outcome;
     error cause;
 |};

@@ -1,3 +1,4 @@
+import ballerina/http;
 import ballerina/lang.runtime;
 import ballerina/log;
 import ballerina/sql;
@@ -88,10 +89,11 @@ function publishDecrementStockMessage(DecrementStockMessage decrementStockMessag
 // retrying the local transaction up to maxTransactionRetries times with
 // exponential backoff on transient failures. Once the local transaction
 // commits, the decrement-stock message is published to Kafka. If every
-// persistence attempt fails, the raw event and the last error are written to
-// the dead-letter queue instead of being lost. Returns an error only if even
-// the dead-letter write itself fails.
-function processWorkOrderCompletion(WorkOrderCompletionEvent event) returns CompletionPersisted|CompletionSentToDlq|error {
+// persistence attempt fails, the existing /incidents/report webhook is called
+// so it can page on-call with the failure details; only if that webhook call
+// itself fails is the raw event and error written to the dead-letter queue as
+// a last resort. Returns an error only if even the dead-letter write fails.
+function processWorkOrderCompletion(WorkOrderCompletionEvent event) returns CompletionPersisted|CompletionReportedAsIncident|CompletionSentToDlq|error {
     DecrementStockMessage decrementStockMessage = {
         idempotencyKey: idempotencyKeyFor(event),
         workOrderId: event.workOrderId,
@@ -110,8 +112,7 @@ function processWorkOrderCompletion(WorkOrderCompletionEvent event) returns Comp
                 workOrderId = event.workOrderId, attempt = attempt, 'error = result);
 
         if attempt >= maxTransactionRetries {
-            check writeToDeadLetterQueue(event, result);
-            return {cause: result};
+            return handleExhaustedRetries(event, result);
         }
 
         decimal backoffSeconds = retryBaseDelaySeconds * (2 ^ (attempt - 1));
@@ -128,11 +129,42 @@ function processWorkOrderCompletion(WorkOrderCompletionEvent event) returns Comp
                 workOrderId = event.workOrderId, 'error = publishResult);
     }
 
-    return {};
+    return {outcome: "PERSISTED"};
+}
+
+// Called once the local transaction has failed on every retry attempt. Pages
+// on-call via the existing incidents webhook; only falls back to the
+// dead-letter table if that webhook call itself fails.
+function handleExhaustedRetries(WorkOrderCompletionEvent event, error cause) returns CompletionReportedAsIncident|CompletionSentToDlq|error {
+    error? incidentResult = reportIncident(event, cause);
+    if incidentResult is () {
+        return {outcome: "INCIDENT_REPORTED", cause};
+    }
+
+    log:printWarn("Failed to report incident to the on-call webhook, writing to the dead-letter queue instead",
+            workOrderId = event.workOrderId, 'error = incidentResult);
+    check writeToDeadLetterQueue(event, cause);
+    return {outcome: "DEAD_LETTERED", cause};
+}
+
+// Calls the existing /incidents/report webhook so it can page on-call with
+// the failure details.
+function reportIncident(WorkOrderCompletionEvent event, error cause) returns error? {
+    IncidentReport incidentReport = {
+        workOrderId: event.workOrderId,
+        technicianId: event.technicianId,
+        rawEvent: event.toJsonString(),
+        errorMessage: cause.message()
+    };
+    http:Response|http:ClientError response = incidentsServiceClient->/incidents/report.post(incidentReport);
+    if response is http:ClientError {
+        return response;
+    }
 }
 
 // Writes the raw event and the error that caused the final failure to the
-// workorder_completions_dlq table so that the event is not lost.
+// workorder_completions_dlq table so that the event is not lost. This is only
+// used as a last resort when the incidents webhook call itself fails.
 function writeToDeadLetterQueue(WorkOrderCompletionEvent event, error cause) returns error? {
     string rawEventJson = event.toJsonString();
     string errorMessage = cause.message();
