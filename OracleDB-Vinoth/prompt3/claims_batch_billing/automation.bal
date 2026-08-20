@@ -1,0 +1,11 @@
+
+import ballerina/http;
+import ballerina/log;
+
+public function main() returns error? {
+    ClaimLine[] pendingLines = check clearinghouseClient->get("/claims/pending-lines");
+    error? result = insertClaimLineBatch(pendingLines);
+    if result is error {
+        log:printError("Claims batch billing run failed", 'error = result);
+    }
+}
