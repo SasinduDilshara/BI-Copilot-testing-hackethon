@@ -37,28 +37,62 @@ function calculatePremium(oracledb:Client dbClient, string policyId, decimal cov
     return premiumBreakdown;
 }
 
-# Executes the bind operation (premium calculation plus the two inserts) within a single
-# database transaction. Rolls back both inserts if either one fails.
+# Calls the read-only premium calculation, retrying up to the configured number of attempts
+# with exponential backoff when a transient connection error occurs. This is safe to retry
+# since it does not mutate any state.
 #
 # + bindRequest - the incoming policy bind request
+# + return - the calculated PremiumBreakdown, or the last encountered error if all retries were exhausted
+function calculatePremiumWithRetry(PolicyBindRequest bindRequest) returns PremiumBreakdown|error {
+    string policyId = bindRequest.policyId;
+    decimal coverageAmount = bindRequest.coverageAmount;
+    RiskTier riskTier = bindRequest.riskTier;
+
+    error lastError = error("premium calculation did not execute");
+    int attempt = 0;
+    while attempt < maxRetryAttempts {
+        attempt += 1;
+        PremiumBreakdown|error calculationResult = calculatePremium(policyDbClient, policyId, coverageAmount, riskTier);
+        if calculationResult is PremiumBreakdown {
+            return calculationResult;
+        }
+        lastError = calculationResult;
+        boolean transientError = isTransientConnectionError(calculationResult);
+        if !transientError || attempt >= maxRetryAttempts {
+            break;
+        }
+        decimal backoffSeconds = retryBaseDelaySeconds * (2 ^ (attempt - 1));
+        log:printWarn("Transient error while calculating premium, retrying",
+                policyId = policyId, attempt = attempt, backoffSeconds = backoffSeconds, 'error = lastError);
+        runtime:sleep(backoffSeconds);
+    }
+    return lastError;
+}
+
+# Persists the bound policy (using an already-calculated premium breakdown) into the
+# policies and ledger_entries tables within a single database transaction. Rolls back both
+# inserts if either one fails. This is attempted only once - a partially committed
+# transaction must never be blindly retried.
+#
+# + bindRequest - the incoming policy bind request
+# + premiumBreakdown - the already-calculated premium breakdown
 # + return - the response to return to the caller, or an error on failure
-function bindPolicyInTransaction(PolicyBindRequest bindRequest) returns PolicyBoundResponse|error {
+function persistPolicyInTransaction(PolicyBindRequest bindRequest, PremiumBreakdown premiumBreakdown)
+        returns PolicyBoundResponse|error {
     string policyId = bindRequest.policyId;
     string customerId = bindRequest.customerId;
     decimal coverageAmount = bindRequest.coverageAmount;
     RiskTier riskTier = bindRequest.riskTier;
 
-    PolicyBoundResponse|error result = trap calculateAndPersist(policyId, customerId, coverageAmount, riskTier);
+    PolicyBoundResponse|error result = trap persistPolicy(policyId, customerId, coverageAmount, riskTier, premiumBreakdown);
     return result;
 }
 
-function calculateAndPersist(string policyId, string customerId, decimal coverageAmount, RiskTier riskTier)
-        returns PolicyBoundResponse|error {
+function persistPolicy(string policyId, string customerId, decimal coverageAmount, RiskTier riskTier,
+        PremiumBreakdown premiumBreakdown) returns PolicyBoundResponse|error {
     PolicyBoundResponse boundResponse;
+    decimal totalPremium = premiumBreakdown.baseAmount + premiumBreakdown.taxAmount + premiumBreakdown.brokerFee;
     transaction {
-        PremiumBreakdown premiumBreakdown = check calculatePremium(policyDbClient, policyId, coverageAmount, riskTier);
-        decimal totalPremium = premiumBreakdown.baseAmount + premiumBreakdown.taxAmount + premiumBreakdown.brokerFee;
-
         sql:ParameterizedQuery insertPolicyQuery = `INSERT INTO policies
             (policy_id, customer_id, coverage_amount, risk_tier, total_premium)
             VALUES (${policyId}, ${customerId}, ${coverageAmount}, ${riskTier}, ${totalPremium})`;
@@ -81,32 +115,15 @@ function calculateAndPersist(string policyId, string customerId, decimal coverag
     return boundResponse;
 }
 
-# Attempts to bind the policy, retrying up to the configured number of attempts with
-# exponential backoff when a transient connection error occurs.
+# Orchestrates the full bind operation: retries only the read-only premium calculation,
+# then attempts the transactional inserts exactly once. Neither step is retried as a whole -
+# any transaction failure is surfaced immediately so the caller can fall back to the DLQ.
 #
 # + bindRequest - the incoming policy bind request
-# + return - the successful bind response, or the last encountered error if all retries were exhausted
-function bindPolicyWithRetry(PolicyBindRequest bindRequest) returns PolicyBoundResponse|error {
-    error lastError = error("bind operation did not execute");
-    int attempt = 0;
-    while attempt < maxRetryAttempts {
-        attempt += 1;
-        PolicyBoundResponse|error bindResult = bindPolicyInTransaction(bindRequest);
-        if bindResult is PolicyBoundResponse {
-            return bindResult;
-        }
-        lastError = bindResult;
-        boolean transientError = isTransientConnectionError(bindResult);
-        if !transientError || attempt >= maxRetryAttempts {
-            break;
-        }
-        decimal backoffSeconds = retryBaseDelaySeconds * (2 ^ (attempt - 1));
-        log:printWarn("Transient error while binding policy, retrying",
-                policyId = bindRequest.policyId, attempt = attempt, backoffSeconds = backoffSeconds,
-                'error = lastError);
-        runtime:sleep(backoffSeconds);
-    }
-    return lastError;
+# + return - the successful bind response, or the encountered error
+function bindPolicy(PolicyBindRequest bindRequest) returns PolicyBoundResponse|error {
+    PremiumBreakdown premiumBreakdown = check calculatePremiumWithRetry(bindRequest);
+    return persistPolicyInTransaction(bindRequest, premiumBreakdown);
 }
 
 # Writes the original request payload and the failure reason into the policies_dlq table
