@@ -14,7 +14,8 @@ final http:Client riskEngineClient = check new (riskEngineUrl, timeout = 10);
 // Connects against the CDB root (TRADECDB) with the pluggable database set to TRADEPDB.
 // Both RAC nodes are supplied so LogMiner can continue mining after a failover.
 // LogMiner buffering happens on the database side (LOGMINER_UNBUFFERED) instead of within
-// the connector, and LOB capture is enabled to receive the trade_notes CLOB column.
+// the connector. Only changes made by the TRADE_ENGINE_SVC application account are captured,
+// so manual back-office corrections made by other DB accounts are ignored.
 listener oracledb:CdcListener positionsCdcListener = new (
     database = {
         username: cdcUsername,
@@ -23,10 +24,12 @@ listener oracledb:CdcListener positionsCdcListener = new (
         pdbName: pdbName,
         racNodes: racNodes,
         adapterMode: oracledb:LOGMINER_UNBUFFERED,
-        includedTables: "POSITIONS"
+        includedTables: "POSITIONS",
+        logMinerConfig: {
+            includedUsernames: "TRADE_ENGINE_SVC"
+        }
     },
     options = {
-        snapshotMode: cdc:NO_DATA,
-        lobEnabled: true
+        snapshotMode: cdc:NO_DATA
     }
 );

@@ -34,12 +34,11 @@ function writeToDlq(Position pos, string failureReason) returns error? {
         instrumentId: pos.instrumentId,
         quantity: pos.quantity,
         markPrice: pos.markPrice,
-        tradeNotes: pos.tradeNotes,
         failureReason: failureReason
     };
     _ = check positionsClient->execute(
         `INSERT INTO positions_reconciliation_dlq
-            (position_id, book, instrument_id, quantity, mark_price, trade_notes, failure_reason)
+            (position_id, book, instrument_id, quantity, mark_price, failure_reason)
          VALUES (${dlqEntry.positionId}, ${dlqEntry.book}, ${dlqEntry.instrumentId},
-                 ${dlqEntry.quantity}, ${dlqEntry.markPrice}, ${dlqEntry.tradeNotes}, ${dlqEntry.failureReason})`);
+                 ${dlqEntry.quantity}, ${dlqEntry.markPrice}, ${dlqEntry.failureReason})`);
 }

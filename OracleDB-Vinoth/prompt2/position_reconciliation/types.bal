@@ -5,7 +5,6 @@ public type Position record {|
     string instrumentId;
     decimal quantity;
     decimal markPrice;
-    string? tradeNotes;
 |};
 
 public type PositionReconciliationDlqEntry record {|
@@ -14,6 +13,5 @@ public type PositionReconciliationDlqEntry record {|
     string instrumentId;
     decimal quantity;
     decimal markPrice;
-    string? tradeNotes;
     string failureReason;
 |};
