@@ -5,3 +5,8 @@ public type ClaimLine record {|
     string procedureCode;
     decimal billedAmount;
 |};
+
+public type DeadLetterClaimLine record {|
+    *ClaimLine;
+    string failureReason;
+|};
