@@ -4,19 +4,19 @@ import ballerinax/cdc;
 
 service on plantSensorEventsListener {
 
-    remote function onCreate(SensorEventChange afterEntry, string tableName) returns error? {
-        check forwardSensorEvent(afterEntry, tableName);
+    remote function onCreate(SensorEventChange afterEntry, string sourceTableName) returns error? {
+        check forwardSensorEvent(afterEntry, sourceTableName);
     }
 
-    remote function onUpdate(SensorEventChange beforeEntry, SensorEventChange afterEntry, string tableName) returns error? {
-        check forwardSensorEvent(afterEntry, tableName);
+    remote function onUpdate(SensorEventChange beforeEntry, SensorEventChange afterEntry, string sourceTableName) returns error? {
+        check forwardSensorEvent(afterEntry, sourceTableName);
     }
 
-    remote function onRead(SensorEventChange afterEntry, string tableName) returns error? {
-        check forwardSensorEvent(afterEntry, tableName);
+    remote function onRead(SensorEventChange afterEntry, string sourceTableName) returns error? {
+        check forwardSensorEvent(afterEntry, sourceTableName);
     }
 
-    remote function onDelete(SensorEventChange beforeEntry, string tableName) returns error? {
+    remote function onDelete(SensorEventChange beforeEntry, string sourceTableName) returns error? {
         // Sensor events are not forwarded on delete; nothing to relay to analytics.
     }
 
