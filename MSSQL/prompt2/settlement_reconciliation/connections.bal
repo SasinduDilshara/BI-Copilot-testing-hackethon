@@ -1,13 +1,10 @@
 import ballerinax/mssql;
 import ballerinax/mssql.driver as _;
-import ballerina/http;
 import ballerina/sql;
 
 final mssql:Client settlementClient = check new (
     host = dbHost, port = dbPort, user = dbUser, password = dbPassword, database = dbName
 );
-
-final http:Client processorClient = check new (processorApiUrl, timeout = 15);
 
 # Ensures the settlements table has a unique constraint on settlementId so that
 # re-inserts of an already-committed record are rejected by the database instead
