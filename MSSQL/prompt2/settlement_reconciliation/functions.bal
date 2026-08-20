@@ -6,6 +6,11 @@ import ballerina/lang.runtime;
 const int MAX_RETRIES = 2;
 const decimal BASE_BACKOFF_SECONDS = 0.4;
 
+// MSSQL error codes / SQL state for a unique constraint / duplicate key violation.
+const int MSSQL_ERROR_UNIQUE_CONSTRAINT = 2627;
+const int MSSQL_ERROR_DUPLICATE_KEY_INDEX = 2601;
+const string SQL_STATE_INTEGRITY_CONSTRAINT_VIOLATION = "23000";
+
 function insertSettlementBatch(SettlementRecord[] records) returns error? {
     SettlementRecord[] pendingRecords = records;
     int attempt = 0;
@@ -35,8 +40,11 @@ function insertSettlementBatch(SettlementRecord[] records) returns error? {
     }
 }
 
-# Executes a batch insert for the given records and returns the subset of records whose
-# individual insert command failed, based on the per-command results in sql:BatchExecuteError.
+# Executes a batch insert for the given records and returns the subset of records that
+# genuinely failed. Records flagged by sql:BatchExecuteError as failed (or ambiguous, when the
+# driver stopped processing early) are re-checked individually so that duplicate-key violations
+# — caused by the processor API resending the same settlement — can be classified as a
+# successful no-op instead of a real failure.
 function executeSettlementBatch(SettlementRecord[] records) returns SettlementRecord[]|error {
     sql:ParameterizedQuery[] queries = from SettlementRecord r in records
         select `INSERT INTO settlements (settlementId, storeId, amount, batchDate)
@@ -53,7 +61,8 @@ function executeSettlementBatch(SettlementRecord[] records) returns SettlementRe
         sql:ExecutionResult[] executionResults = detail.executionResults;
         log:printError("Batch insert reported per-command failures", 'error = result,
                 errorCode = detail.errorCode, sqlState = detail.sqlState);
-        return extractFailedRecords(records, executionResults);
+        SettlementRecord[] flaggedRecords = extractFailedRecords(records, executionResults);
+        return classifyFlaggedRecords(flaggedRecords);
     }
 
     log:printError("Batch insert failed with a non-batch SQL error", 'error = result);
@@ -61,23 +70,65 @@ function executeSettlementBatch(SettlementRecord[] records) returns SettlementRe
 }
 
 # Compares each command's execution result against the original records to determine which
-# ones failed. If the driver stopped processing after the first failure, executionResults may
-# be shorter than the input batch — any record without a corresponding result is treated as
-# failed so it gets retried rather than silently dropped.
+# ones were flagged as failed by the batch call. If the driver stopped processing after the
+# first failure, executionResults may be shorter than the input batch — any record without a
+# corresponding result is treated as flagged so it gets individually re-checked.
 function extractFailedRecords(SettlementRecord[] records, sql:ExecutionResult[] executionResults)
         returns SettlementRecord[] {
-    SettlementRecord[] failedRecords = [];
+    SettlementRecord[] flaggedRecords = [];
     foreach int i in 0 ..< records.length() {
         if i >= executionResults.length() {
-            failedRecords.push(records[i]);
+            flaggedRecords.push(records[i]);
             continue;
         }
         int? affectedRowCount = executionResults[i].affectedRowCount;
         if affectedRowCount is int && affectedRowCount == -3 {
-            failedRecords.push(records[i]);
+            flaggedRecords.push(records[i]);
         }
     }
-    return failedRecords;
+    return flaggedRecords;
+}
+
+# Re-executes each flagged record individually to get its own SQL error detail, since
+# sql:BatchExecuteError only carries a single top-level errorCode/sqlState for the whole batch.
+# Duplicate-key violations are logged and skipped as a successful no-op; every other outcome is
+# treated as a genuine failure that must be retried or eventually dead-lettered.
+function classifyFlaggedRecords(SettlementRecord[] flaggedRecords) returns SettlementRecord[]|error {
+    SettlementRecord[] genuinelyFailedRecords = [];
+
+    foreach SettlementRecord r in flaggedRecords {
+        sql:ParameterizedQuery query = `INSERT INTO settlements (settlementId, storeId, amount, batchDate)
+                VALUES (${r.settlementId}, ${r.storeId}, ${r.amount}, ${r.batchDate})`;
+        sql:ExecutionResult|sql:Error result = settlementClient->execute(query);
+
+        if result is sql:ExecutionResult {
+            continue;
+        }
+
+        if result is sql:DatabaseError {
+            if isDuplicateKeyViolation(result) {
+                log:printInfo("Skipping duplicate settlement resend, already inserted",
+                        settlementId = r.settlementId);
+                continue;
+            }
+        }
+
+        log:printError("Settlement insert genuinely failed", 'error = result, settlementId = r.settlementId);
+        genuinelyFailedRecords.push(r);
+    }
+
+    return genuinelyFailedRecords;
+}
+
+# Determines whether an sql:DatabaseError represents a unique constraint / duplicate key
+# violation, based on the MSSQL error code or the SQL state for integrity constraint violations.
+function isDuplicateKeyViolation(sql:DatabaseError databaseError) returns boolean {
+    sql:DatabaseErrorDetail detail = databaseError.detail();
+    int errorCode = detail.errorCode;
+    string? sqlState = detail.sqlState;
+    return errorCode == MSSQL_ERROR_UNIQUE_CONSTRAINT
+        || errorCode == MSSQL_ERROR_DUPLICATE_KEY_INDEX
+        || sqlState == SQL_STATE_INTEGRITY_CONSTRAINT_VIOLATION;
 }
 
 # Inserts records that are still failing after all retries into the settlements_dlq table so
