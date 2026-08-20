@@ -2,6 +2,17 @@ import ballerina/ai;
 
 final ai:ModelProvider supportTicketModel = check ai:getDefaultModelProvider();
 
+// The installed ballerina/ai module does not ship a built-in, zero-infrastructure
+// ai:VectorStore implementation (concrete stores such as Milvus, Pinecone, Weaviate, and
+// PGVector are separate connectors that require external vector database infrastructure),
+// so ai:VectorKnowledgeBase cannot be used here. Embedding generation itself, however, is
+// supported via ai:getDefaultEmbeddingProvider(). Embedding-based retrieval below is therefore
+// implemented manually over the small in-memory knowledge base: articles are embedded once
+// using the default embedding provider and ranked using cosine similarity
+// (ballerina/math.vector) against the embedded query. If the embedding provider is
+// unavailable at runtime, this falls back to the typed keyword search tool.
+final ai:Wso2EmbeddingProvider|error supportArticleEmbeddingProvider = ai:getDefaultEmbeddingProvider();
+
 final ai:SystemPrompt supportTicketAgentSystemPrompt = {
     role: "Enterprise Customer Support Triage Assistant",
     instructions: "You are an enterprise customer-support triage assistant. For every " +
@@ -13,15 +24,24 @@ final ai:SystemPrompt supportTicketAgentSystemPrompt = {
         "5. Provide a confidence value between 0.0 and 1.0 reflecting how confident you are in " +
         "the classification." + "\n" +
         "6. When you need more information to classify the ticket accurately or to craft a " +
-        "better reply, call the searchSupportArticles tool using the ticket category and " +
-        "description to retrieve a relevant knowledge base article. If you use an article, " +
-        "incorporate its guidance into the suggested reply and report its article ID and title." + "\n" +
+        "better reply, call the findRelevantSupportArticle tool using the ticket category and " +
+        "description to retrieve the most relevant knowledge base article using semantic " +
+        "(meaning-based) search. If that tool reports that semantic search is unavailable, call " +
+        "the searchSupportArticles tool instead, which performs keyword-based search. If you use " +
+        "an article, incorporate its guidance into the suggested reply and report its article ID " +
+        "and title." + "\n" +
         "Always respond truthfully and only with information relevant to the ticket."
 };
 
 final ai:Agent supportTicketAgent = check new (
     systemPrompt = supportTicketAgentSystemPrompt,
     model = supportTicketModel,
-    tools = [searchSupportArticles],
+    tools = [findRelevantSupportArticle, searchSupportArticles],
     memory = ()
 );
+
+// Logged lazily (on first use, see functions.bal) rather than in a module init() function,
+// to avoid any module-level initialization ordering issues.
+final string embeddingProviderUnavailableWarning = "Embedding-based support article retrieval is unavailable: " +
+    "the default embedding provider could not be initialized. Falling back to the typed keyword search tool " +
+    "(searchSupportArticles).";

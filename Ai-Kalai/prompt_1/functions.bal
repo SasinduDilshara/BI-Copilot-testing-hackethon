@@ -1,4 +1,6 @@
 import ballerina/ai;
+import ballerina/log;
+import ballerina/math.vector;
 
 // A small in-memory knowledge base used by the support-article search tool.
 final readonly & SupportArticle[] knowledgeBaseArticles = [
@@ -58,6 +60,117 @@ final readonly & SupportArticle[] knowledgeBaseArticles = [
             "correct department."
     }
 ];
+
+// Lazily computed, cached embeddings for the knowledge base articles, used for
+// embedding-based similarity retrieval. Guarded by a lock since agent tool invocations may
+// run concurrently.
+isolated EmbeddedSupportArticle[] embeddedKnowledgeBaseArticles = [];
+
+# Returns the cached article embeddings, computing and caching them on first use.
+#
+# + embeddingProvider - the embedding provider used to embed each article
+# + return - the embedded articles, or an error if embedding generation fails
+isolated function getEmbeddedKnowledgeBaseArticles(ai:Wso2EmbeddingProvider embeddingProvider)
+    returns EmbeddedSupportArticle[]|error {
+    lock {
+        if embeddedKnowledgeBaseArticles.length() > 0 {
+            return embeddedKnowledgeBaseArticles.clone();
+        }
+    }
+
+    EmbeddedSupportArticle[] computedEmbeddings = [];
+    foreach SupportArticle article in knowledgeBaseArticles {
+        ai:Chunk articleChunk = {'type: "text", content: article.title + ". " + article.content};
+        ai:Vector|ai:SparseVector|ai:HybridVector|ai:Error embedding = embeddingProvider->embed(articleChunk);
+        if embedding is ai:Error {
+            return error("Failed to generate embedding for article " + article.articleId, embedding);
+        }
+        if !(embedding is ai:Vector) {
+            return error("Embedding provider returned an unsupported embedding type for article " +
+                article.articleId);
+        }
+        computedEmbeddings.push({article, embedding});
+    }
+
+    lock {
+        embeddedKnowledgeBaseArticles = computedEmbeddings.clone();
+    }
+    return computedEmbeddings;
+}
+
+# Searches the support knowledge base using embedding-based (semantic) similarity between the
+# ticket description and the knowledge base articles.
+#
+# + category - the ticket category (billing, technical, account, or other)
+# + description - the ticket description used to find semantically similar content
+# + return - the best matching support article, an error describing why semantic search is
+# unavailable, or an error if no article could be matched
+isolated function searchSupportArticlesByEmbedding(string category, string description)
+    returns SupportArticleSearchResult|error {
+    ai:Wso2EmbeddingProvider embeddingProvider;
+    lock {
+        ai:Wso2EmbeddingProvider|error providerResult = supportArticleEmbeddingProvider;
+        if providerResult is error {
+            log:printWarn(embeddingProviderUnavailableWarning, providerResult);
+            return error("Embedding-based retrieval is unavailable: the default embedding " +
+                "provider could not be initialized.", providerResult);
+        }
+        embeddingProvider = providerResult;
+    }
+
+    EmbeddedSupportArticle[] embeddedArticles = check getEmbeddedKnowledgeBaseArticles(embeddingProvider);
+
+    ai:Chunk queryChunk = {'type: "text", content: "Category: " + category + ". " + description};
+    ai:Vector|ai:SparseVector|ai:HybridVector|ai:Error queryEmbedding = embeddingProvider->embed(queryChunk);
+    if queryEmbedding is ai:Error {
+        return error("Failed to generate embedding for the query", queryEmbedding);
+    }
+    if !(queryEmbedding is ai:Vector) {
+        return error("Embedding provider returned an unsupported embedding type for the query");
+    }
+
+    EmbeddedSupportArticle? bestMatch = ();
+    float bestSimilarity = -1.0;
+    foreach EmbeddedSupportArticle embeddedArticle in embeddedArticles {
+        float similarity = vector:cosineSimilarity(queryEmbedding, embeddedArticle.embedding);
+        if similarity > bestSimilarity {
+            bestSimilarity = similarity;
+            bestMatch = embeddedArticle;
+        }
+    }
+
+    if bestMatch is () {
+        return error("No matching support article was found using embedding-based retrieval");
+    }
+
+    SupportArticle matchedArticle = bestMatch.article;
+    return {
+        articleId: matchedArticle.articleId,
+        title: matchedArticle.title,
+        content: matchedArticle.content
+    };
+}
+
+# Finds the most relevant support article for a ticket using embedding-based (semantic)
+# similarity search. This is the preferred retrieval tool. If the installed environment does
+# not have a working embedding provider, it reports the limitation so the caller can fall back
+# to the keyword-based searchSupportArticles tool.
+#
+# + category - the ticket category (billing, technical, account, or other)
+# + description - the ticket description used to find semantically similar content
+# + return - the best matching support article, or an error explaining that semantic search is
+# unavailable and that the searchSupportArticles tool should be used instead
+@ai:AgentTool
+isolated function findRelevantSupportArticle(string category, string description) returns SupportArticleSearchResult|error {
+    SupportArticleSearchResult|error result = searchSupportArticlesByEmbedding(category, description);
+    if result is error {
+        log:printWarn("Embedding-based support article search failed, keyword search should be used instead",
+                result);
+        return error("Semantic search is unavailable (" + result.message() +
+            "). Use the searchSupportArticles tool instead.");
+    }
+    return result;
+}
 
 # Searches the support knowledge base using the ticket category and description to find the
 # most relevant article.

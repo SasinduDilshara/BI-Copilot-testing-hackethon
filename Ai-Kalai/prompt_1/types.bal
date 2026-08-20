@@ -25,6 +25,13 @@ public type SupportArticleSearchResult record {|
     string content;
 |};
 
+// An article paired with its pre-computed dense embedding vector, used for
+// embedding-based similarity retrieval.
+type EmbeddedSupportArticle record {|
+    SupportArticle article;
+    float[] embedding;
+|};
+
 // Structured triage result produced by the support ticket agent.
 public type TicketTriageResult record {|
     TicketCategory category;
