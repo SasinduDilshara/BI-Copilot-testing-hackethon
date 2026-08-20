@@ -18,8 +18,8 @@ function isTransientConnectionError(error dbError) returns boolean {
     return false;
 }
 
-# Calls the Oracle PL/SQL function CALCULATE_PREMIUM and maps the returned
-# PREMIUM_BREAKDOWN_TYPE OBJECT into a PremiumBreakdown record.
+# Calls the Oracle PL/SQL stored procedure CALCULATE_PREMIUM (with an OUT parameter for the
+# result) and maps the returned PREMIUM_BREAKDOWN_TYPE OBJECT into a PremiumBreakdown record.
 #
 # + dbClient - the database client to use for the call, in scope of the active transaction
 # + policyId - the policy identifier
@@ -30,7 +30,7 @@ function calculatePremium(oracledb:Client dbClient, string policyId, decimal cov
         returns PremiumBreakdown|error {
     oracledb:ObjectOutParameter premiumBreakdownOut = new (typeName = "PREMIUM_BREAKDOWN_TYPE");
     sql:ProcedureCallResult callResult = check dbClient->call(
-        `{${premiumBreakdownOut} = call CALCULATE_PREMIUM(${policyId}, ${coverageAmount}, ${riskTier})}`
+        `call CALCULATE_PREMIUM(${policyId}, ${coverageAmount}, ${riskTier}, ${premiumBreakdownOut})`
     );
     check callResult.close();
     PremiumBreakdown premiumBreakdown = check premiumBreakdownOut.get(PremiumBreakdown);
