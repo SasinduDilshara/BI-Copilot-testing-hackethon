@@ -1,0 +1,9 @@
+[package]
+org = "vinoth"
+name = "arcade_leaderboard"
+version = "0.1.0"
+distribution = "2201.13.5"
+title = "arcade_leaderboard"
+
+[build-options]
+sticky = true
