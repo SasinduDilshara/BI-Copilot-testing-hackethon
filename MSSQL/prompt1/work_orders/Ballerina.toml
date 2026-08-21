@@ -1,0 +1,9 @@
+[package]
+org = "vinoth"
+name = "work_orders"
+version = "0.1.0"
+distribution = "2201.13.5"
+title = "work_orders"
+
+[build-options]
+sticky = true
