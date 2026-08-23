@@ -24,3 +24,20 @@ public type TriageResult record {|
     string matchedProtocol;
     string triageNotes;
 |};
+
+// Follow-up question submitted by a patient about their earlier triage result.
+public type FollowupRequest record {|
+    string question;
+|};
+
+// Agent's answer to a patient's follow-up question.
+public type FollowupResponse record {|
+    string patientId;
+    string answer;
+|};
+
+// Error payload returned when a patient's triage session has expired.
+public type SessionExpiredError record {|
+    string 'error;
+    string patientId;
+|};

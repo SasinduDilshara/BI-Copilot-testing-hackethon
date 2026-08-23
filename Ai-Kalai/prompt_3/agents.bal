@@ -19,9 +19,16 @@ final ai:SystemPrompt triageSystemPrompt = {
 // Toolkit that groups all symptom assessment tools available to the triage agent.
 final EmergencyAssessmentToolKit emergencyAssessmentToolKit = new;
 
+// Conversation memory store keyed by session ID (the patient ID), retaining up to 20 messages
+// per session so that different patients' conversations remain isolated from one another.
+final ai:ShortTermMemory triageMemory = check new (check new ai:InMemoryShortTermMemoryStore(20));
+
 // AI agent that performs clinical symptom triage using the registered assessment toolkit.
+// Sessions are keyed by patient ID (passed as sessionId on each `run` call), which keeps each
+// patient's triage conversation and follow-up context isolated from other patients.
 final ai:Agent symptomTriageAgent = check new (
     systemPrompt = triageSystemPrompt,
     model = triageModel,
-    tools = [emergencyAssessmentToolKit]
+    tools = [emergencyAssessmentToolKit],
+    memory = triageMemory
 );

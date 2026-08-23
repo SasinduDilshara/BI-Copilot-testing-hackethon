@@ -41,6 +41,37 @@ service /triage on new http:Listener(8080) {
             triageResult.urgencyLevel = "emergency";
         }
 
+        // Start/refresh the session's activity window so follow-up questions can be asked
+        // about this triage result within the configured timeout.
+        touchSession(payload.patientId);
+
         return triageResult;
+    }
+
+    # Accepts a patient's follow-up question about their earlier triage result and answers it
+    # using the same agent session, so the agent recalls the prior triage context for that patient.
+    #
+    # + patientId - the patient ID that identifies the triage session
+    # + followupRequest - the patient's follow-up question
+    # + return - the agent's answer, a Gone response if the session has expired, or an error response
+    resource function post sessions/[string patientId]/followup(@http:Payload FollowupRequest followupRequest)
+            returns FollowupResponse|http:Gone|http:InternalServerError {
+        boolean sessionExpired = isSessionExpired(patientId);
+        if sessionExpired {
+            return <http:Gone>{
+                body: <SessionExpiredError>{'error: "Session expired", patientId}
+            };
+        }
+
+        string|error answer = symptomTriageAgent.run(followupRequest.question, sessionId = patientId);
+        if answer is error {
+            return <http:InternalServerError>{
+                body: {message: "Failed to answer follow-up question: " + answer.message()}
+            };
+        }
+
+        touchSession(patientId);
+
+        return {patientId, answer};
     }
 }
