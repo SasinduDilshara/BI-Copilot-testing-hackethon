@@ -1,7 +1,6 @@
 import ballerina/ai;
-import ballerina/lang.regexp;
 
-// Keywords that indicate a potential emergency when found in the symptom description.
+// Emergency keywords that, when present in a symptom description, indicate a potential emergency.
 final string[] & readonly emergencyKeywords = [
     "chest pain",
     "difficulty breathing",
@@ -12,86 +11,64 @@ final string[] & readonly emergencyKeywords = [
     "stroke",
     "seizure",
     "severe pain",
-    "can't breathe",
-    "cannot breathe",
+    "choking",
     "heart attack",
-    "choking"
+    "not breathing"
 ];
 
 // Groups all symptom assessment tools used by the symptom triage agent.
+// Reads hasFever, hasChestPain, and hasBreathingDifficulty from the shared ai:Context
+// instead of requiring them as explicit tool parameters.
 public isolated class EmergencyAssessmentToolKit {
     *ai:BaseToolKit;
 
-    // Detects emergency keywords in the symptom description and factors in the shared
-    // context values (hasFever, hasChestPain, hasBreathingDifficulty) set for the run.
+    # Detects emergency keywords in the symptom description and flags critical vital signs
+    # (fever, chest pain, breathing difficulty) held in the shared context.
+    #
+    # + context - shared agent context containing hasFever, hasChestPain, hasBreathingDifficulty
+    # + symptomDescription - free text description of the patient's symptoms
+    # + return - a summary describing which emergency indicators were detected
     @ai:AgentTool
-    public isolated function detectEmergencyKeywords(ai:Context context, string symptomDescription) returns string[]|error {
-        string[] matchedKeywords = [];
+    isolated function detectEmergencyKeywords(ai:Context context, string symptomDescription) returns string|error {
         string lowerCaseDescription = symptomDescription.toLowerAscii();
-        foreach string keyword in emergencyKeywords {
-            if lowerCaseDescription.includes(keyword) {
-                matchedKeywords.push(keyword);
-            }
-        }
+        string[] matchedKeywords = from string keyword in emergencyKeywords
+            where lowerCaseDescription.includes(keyword)
+            select keyword;
 
-        boolean hasChestPain = check context.getWithType("hasChestPain");
-        boolean hasBreathingDifficulty = check context.getWithType("hasBreathingDifficulty");
-        if hasChestPain {
-            matchedKeywords.push("flag:hasChestPain");
-        }
-        if hasBreathingDifficulty {
-            matchedKeywords.push("flag:hasBreathingDifficulty");
-        }
-        return matchedKeywords;
-    }
-
-    // Maps the reported symptom duration to a suggested urgency level, taking the shared
-    // context values (hasFever, hasChestPain, hasBreathingDifficulty) into account.
-    @ai:AgentTool
-    public isolated function mapDurationToUrgency(ai:Context context, string symptomDuration) returns string|error {
         boolean hasFever = check context.getWithType("hasFever");
         boolean hasChestPain = check context.getWithType("hasChestPain");
         boolean hasBreathingDifficulty = check context.getWithType("hasBreathingDifficulty");
 
-        if hasChestPain || hasBreathingDifficulty {
-            return "emergency";
-        }
+        boolean criticalVitalsPresent = hasChestPain || hasBreathingDifficulty;
+        string matchedKeywordsText = matchedKeywords.length() > 0 ? string:'join(", ", ...matchedKeywords) : "none";
 
-        string:RegExp hoursPattern = re `([0-9]+)\s*hour`;
-        string:RegExp daysPattern = re `([0-9]+)\s*day`;
-        string:RegExp weeksPattern = re `([0-9]+)\s*week`;
+        return string `Matched emergency keywords: ${matchedKeywordsText}. ` +
+            string `Fever present: ${hasFever}. Chest pain present: ${hasChestPain}. ` +
+            string `Breathing difficulty present: ${hasBreathingDifficulty}. ` +
+            string `Critical vitals flagged: ${criticalVitalsPresent}.`;
+    }
+
+    # Maps the reported symptom duration to a suggested urgency level.
+    #
+    # + symptomDuration - free text description of how long the symptoms have persisted (e.g. "2 hours", "3 days")
+    # + return - suggested urgency level derived purely from the duration text
+    @ai:AgentTool
+    isolated function mapDurationToUrgency(string symptomDuration) returns string {
         string lowerCaseDuration = symptomDuration.toLowerAscii();
 
-        regexp:Groups? hoursMatch = hoursPattern.findGroups(lowerCaseDuration);
-        if hoursMatch is regexp:Groups {
-            regexp:Span? valueSpan = hoursMatch[1];
-            if valueSpan is regexp:Span {
-                int hours = check int:fromString(valueSpan.substring());
-                if hasFever && hours <= 24 {
-                    return "urgent";
-                }
-                return hours <= 6 ? "urgent" : "routine";
-            }
+        if lowerCaseDuration.includes("minute") || lowerCaseDuration.includes("hour") {
+            return "Duration suggests an acute onset - consider emergency or urgent triage.";
         }
 
-        regexp:Groups? daysMatch = daysPattern.findGroups(lowerCaseDuration);
-        if daysMatch is regexp:Groups {
-            regexp:Span? valueSpan = daysMatch[1];
-            if valueSpan is regexp:Span {
-                int days = check int:fromString(valueSpan.substring());
-                if hasFever && days <= 3 {
-                    return "urgent";
-                }
-                return days <= 1 ? "urgent" : "routine";
-            }
+        if lowerCaseDuration.includes("day") {
+            return "Duration suggests a short-term condition - consider urgent triage.";
         }
 
-        regexp:Groups? weeksMatch = weeksPattern.findGroups(lowerCaseDuration);
-        if weeksMatch is regexp:Groups {
-            return "routine";
+        if lowerCaseDuration.includes("week") || lowerCaseDuration.includes("month") || lowerCaseDuration.includes("year") {
+            return "Duration suggests a long-standing condition - consider routine triage.";
         }
 
-        return hasFever ? "urgent" : "routine";
+        return "Duration is unclear - assess using other clinical indicators.";
     }
 
     public isolated function getTools() returns ai:ToolConfig[] =>
