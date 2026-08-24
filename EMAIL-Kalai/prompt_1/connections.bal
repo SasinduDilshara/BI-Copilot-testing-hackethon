@@ -15,3 +15,5 @@ final email:SmtpConfiguration smtpConfig = {
 };
 
 final email:SmtpClient smtpClient = check new (smtpHost, smtpUsername, clientConfig = smtpConfig);
+
+isolated map<OrderConfirmationRequest> sentOrders = {};

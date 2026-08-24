@@ -1,3 +1,19 @@
+// Builds a plain text invoice document for the given order.
+function buildInvoiceText(OrderConfirmationRequest orderRequest, string invoiceDate) returns string {
+    string invoiceText = string `INVOICE
+
+Invoice Date: ${invoiceDate}
+Order ID: ${orderRequest.orderId}
+
+Product: ${orderRequest.productName}
+Quantity: ${orderRequest.quantity}
+Unit Price: ${orderRequest.unitPrice}
+Total Amount: ${orderRequest.totalAmount}
+
+Thank you for your business.`;
+    return invoiceText;
+}
+
 // Builds the plain text fallback body for the order confirmation email.
 function buildPlainTextBody(OrderConfirmationRequest orderRequest) returns string {
     string plainTextBody = string `Order Confirmation
