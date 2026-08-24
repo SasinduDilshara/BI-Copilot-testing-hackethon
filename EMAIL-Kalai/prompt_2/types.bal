@@ -17,3 +17,9 @@ public type AlertResponse record {|
     string status;
     string sentAt;
 |};
+
+# Response returned after polling and processing acknowledgment emails.
+public type AckPollResponse record {|
+    int processedCount;
+    string[] acknowledgedAlertIds;
+|};

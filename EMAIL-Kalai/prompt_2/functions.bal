@@ -1,3 +1,20 @@
+import ballerina/lang.regexp;
+
+final regexp:RegExp ackSubjectPattern = re `Re: \[(CRITICAL|WARNING|INFO)\] Incident ([^\s]+)`;
+
+// Extracts the alertId from an acknowledgment email subject line matching
+// the pattern "Re: [CRITICAL|WARNING|INFO] Incident {alertId}".
+function extractAlertIdFromSubject(string subject) returns string? {
+    regexp:Groups? groups = ackSubjectPattern.findGroups(subject);
+    if groups is regexp:Groups {
+        regexp:Span? alertIdSpan = groups[2];
+        if alertIdSpan is regexp:Span {
+            return alertIdSpan.substring();
+        }
+    }
+    return ();
+}
+
 // Returns the inline HTML colour code for a given alert severity.
 function getSeverityColor(Severity severity) returns string {
     if severity == "critical" {
