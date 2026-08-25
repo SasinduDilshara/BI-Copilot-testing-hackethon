@@ -12,6 +12,7 @@ type TokenValidationResult record {|
     string[] allowedScopes;
     int expiresInSeconds;
     boolean cacheHit;
+    int cachedAt;
 |};
 
 // Details of a token known to the upstream authorization server.
