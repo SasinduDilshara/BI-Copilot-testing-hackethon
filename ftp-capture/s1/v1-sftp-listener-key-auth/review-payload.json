@@ -1,0 +1,124 @@
+{
+  "modifiedFiles": [
+    "types.bal",
+    "config.bal",
+    "connections.bal",
+    "functions.bal",
+    "main.bal",
+    "automation.bal"
+  ],
+  "semanticDiffs": [
+    {
+      "changeType": 0,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/ftp-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 21,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 23,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "onError",
+        "servicePath": "",
+        "resourcePath": ""
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/ftp-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 9,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 19,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "onFileCsv",
+        "servicePath": "",
+        "resourcePath": ""
+      }
+    },
+    {
+      "changeType": 1,
+      "nodeKind": 0,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/ftp-capture/automation.bal",
+      "lineRange": {
+        "fileName": "automation.bal",
+        "startLine": {
+          "line": 2,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 9,
+          "offset": 1
+        }
+      },
+      "metadata": {
+        "name": "main"
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 0,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/ftp-capture/functions.bal",
+      "lineRange": {
+        "fileName": "functions.bal",
+        "startLine": {
+          "line": 4,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 7,
+          "offset": 1
+        }
+      },
+      "metadata": {
+        "name": "processOrder"
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 2,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/ftp-capture/types.bal",
+      "lineRange": {
+        "fileName": "types.bal",
+        "startLine": {
+          "line": 2,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 9,
+          "offset": 3
+        }
+      },
+      "metadata": {
+        "name": "Order"
+      }
+    }
+  ],
+  "loadDesignDiagrams": true,
+  "affectedPackages": [
+    "/var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/ftp-capture"
+  ],
+  "isWorkspace": false,
+  "diffPackageMap": [
+    "ftp-capture",
+    "ftp-capture",
+    "ftp-capture",
+    "ftp-capture",
+    "ftp-capture"
+  ],
+  "generationId": "msg-1787631841216-i64dz8tn4"
+}

@@ -1,0 +1,91 @@
+{
+  "n": 1,
+  "label": "sftp-listener-key-auth",
+  "settled": true,
+  "approvals": 0,
+  "reviewOpened": true,
+  "reviewCards": [
+    "resource ONERROR + Added",
+    "resource ONFILECSV + Added",
+    "automation main - Deleted",
+    "function processOrder + Added",
+    "Types + Added"
+  ],
+  "reviewViews": [
+    {
+      "index": 1,
+      "label": "Design Diagram",
+      "slug": "design-diagram",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/ftp-captures/ftp-capture-20260825-102319/s1/v1-sftp-listener-key-auth/review-views/view-01-design-diagram"
+    },
+    {
+      "index": 2,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-onerror-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/ftp-captures/ftp-capture-20260825-102319/s1/v1-sftp-listener-key-auth/review-views/view-02-addition-onerror-main"
+    },
+    {
+      "index": 3,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-onfilecsv-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/ftp-captures/ftp-capture-20260825-102319/s1/v1-sftp-listener-key-auth/review-views/view-03-addition-onfilecsv-main"
+    },
+    {
+      "index": 4,
+      "label": "deletion: function in automation.bal",
+      "slug": "deletion-main-automation",
+      "modes": {
+        "diff": "captured",
+        "new": "disabled",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/ftp-captures/ftp-capture-20260825-102319/s1/v1-sftp-listener-key-auth/review-views/view-04-deletion-main-automation"
+    },
+    {
+      "index": 5,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-processorder-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/ftp-captures/ftp-capture-20260825-102319/s1/v1-sftp-listener-key-auth/review-views/view-05-addition-processorder-functions"
+    },
+    {
+      "index": 6,
+      "label": "addition: type in types.bal",
+      "slug": "addition-order-types",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/ftp-captures/ftp-capture-20260825-102319/s1/v1-sftp-listener-key-auth/review-views/view-06-addition-order-types"
+    }
+  ],
+  "tools": [
+    "LibrarySearchTool",
+    "LibraryGetTool",
+    "file_read",
+    "file_write",
+    "file_edit",
+    "getCompilationErrors"
+  ],
+  "chatScreenshots": 3
+}

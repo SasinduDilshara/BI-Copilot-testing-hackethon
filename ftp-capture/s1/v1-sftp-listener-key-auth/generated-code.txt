@@ -1,0 +1,118 @@
+==== Ballerina.toml ====
+[package]
+org = "anjanash"
+name = "test_project"
+version = "0.1.0"
+distribution = "2201.13.2"
+title = "test-project"
+
+[build-options]
+sticky = true
+
+
+==== agents.bal ====
+
+
+
+==== automation.bal ====
+// This integration is triggered by the SFTP listener defined in main.bal;
+// no separate automation entry point is required.
+
+
+==== config.bal ====
+// SFTP server connection details.
+configurable string sftpHost = ?;
+configurable int sftpPort = 22;
+configurable string sftpUsername = ?;
+
+// SSH private key based authentication (no hardcoded secrets).
+configurable string sftpPrivateKeyPath = ?;
+configurable string sftpPrivateKeyPassword = ?;
+
+// Known-hosts file used to verify the SFTP server's identity.
+configurable string sftpKnownHostsPath = ?;
+
+// Remote drop directory that is polled for incoming partner order CSV files
+// and the polling interval (in seconds).
+configurable string ordersDropPath = ?;
+configurable decimal pollingInterval = 60;
+
+
+==== connections.bal ====
+import ballerina/ftp;
+
+listener ftp:Listener orderFileListener = check new ({
+    protocol: ftp:SFTP,
+    host: sftpHost,
+    port: sftpPort,
+    auth: {
+        credentials: {
+            username: sftpUsername
+        },
+        privateKey: {
+            path: sftpPrivateKeyPath,
+            password: sftpPrivateKeyPassword
+        }
+    },
+    sftpSshKnownHosts: sftpKnownHostsPath,
+    pollingInterval: pollingInterval
+});
+
+
+==== data_mappings.bal ====
+
+
+
+==== functions.bal ====
+import ballerina/log;
+import ballerina/ftp;
+
+// Processes a single, strongly typed partner order and executes downstream
+// business logic for it.
+function processOrder(Order 'order) returns error? {
+    log:printInfo("Processing partner order", orderId = 'order.orderId, customerId = 'order.customerId,
+            productCode = 'order.productCode, quantity = 'order.quantity);
+}
+
+
+==== main.bal ====
+import ballerina/ftp;
+import ballerina/log;
+
+@ftp:ServiceConfig {
+    path: ordersDropPath,
+    fileNamePattern: "(.*).csv"
+}
+service on orderFileListener {
+
+    remote function onFileCsv(Order[] contents, ftp:FileInfo fileInfo) returns error? {
+        log:printInfo("New partner order file received", fileName = fileInfo.name, path = fileInfo.path);
+
+        foreach Order 'order in contents {
+            error? result = processOrder('order);
+            if result is error {
+                log:printError("Failed to process order", 'error = result, orderId = 'order.orderId,
+                        fileName = fileInfo.name);
+            }
+        }
+    }
+
+    remote function onError(ftp:Error ftpError) returns error? {
+        log:printError("Error while polling the SFTP drop directory", 'error = ftpError);
+    }
+}
+
+
+==== types.bal ====
+// Strongly typed representation of a single partner order row parsed from an
+// incoming CSV file.
+public type Order record {|
+    string orderId;
+    string customerId;
+    string productCode;
+    int quantity;
+    decimal unitPrice;
+    string orderDate;
+|};
+
+
