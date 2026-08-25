@@ -1,5 +1,41 @@
 import ballerina/email;
 
+function checkProvisioningConfirmation(string employeeId) returns string? {
+    email:PopConfiguration popConfig = {
+        port: popPort
+    };
+    email:PopClient|email:Error popClient = new (popHost, popUsername, popPassword, clientConfig = popConfig);
+    if popClient is email:Error {
+        return ();
+    }
+
+    string? confirmationBody = ();
+    int attempt = 0;
+    while attempt < 5 {
+        email:Message|email:Error? receiveResult = popClient->receiveMessage();
+        if receiveResult is email:Message {
+            string subject = receiveResult.subject;
+            if subject.includes(employeeId) {
+                string? textBody = receiveResult.body;
+                if textBody is string {
+                    confirmationBody = textBody;
+                } else {
+                    confirmationBody = receiveResult.htmlBody;
+                }
+                break;
+            }
+        }
+        attempt += 1;
+    }
+
+    email:Error? closeResult = popClient->close();
+    if closeResult is email:Error {
+        // Ignore close errors, the confirmation check result still stands.
+    }
+
+    return confirmationBody;
+}
+
 function sendWelcomeEmail(OnboardRequest onboardRequest) returns email:Error? {
     string htmlBody = string `
         <html>

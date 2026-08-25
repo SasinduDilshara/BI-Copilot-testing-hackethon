@@ -17,3 +17,10 @@ type OnboardResponse record {|
     string status;
     string[] failedRecipients?;
 |};
+
+// Response payload returned after checking for the IT provisioning confirmation email.
+type ProvisioningCheckResponse record {|
+    string employeeId;
+    string provisioningStatus;
+    string provisioningConfirmation?;
+|};

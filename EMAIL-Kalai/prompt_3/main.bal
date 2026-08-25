@@ -43,4 +43,20 @@ service /hr on new http:Listener(7070) {
             failedRecipients: failedRecipients
         };
     }
+
+    resource function post 'check\-provisioning/[string employeeId]() returns ProvisioningCheckResponse {
+        string? confirmationBody = checkProvisioningConfirmation(employeeId);
+        if confirmationBody is string {
+            return {
+                employeeId: employeeId,
+                provisioningStatus: "completed",
+                provisioningConfirmation: confirmationBody
+            };
+        }
+
+        return {
+            employeeId: employeeId,
+            provisioningStatus: "pending"
+        };
+    }
 }
