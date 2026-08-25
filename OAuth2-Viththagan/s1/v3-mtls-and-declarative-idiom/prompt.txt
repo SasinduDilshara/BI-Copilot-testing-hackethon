@@ -1,0 +1,1 @@
+The token endpoint now requires mutual TLS with a client certificate and key we hold in a keystore. Wire mTLS into the OAuth2 token acquisition using config-supplied cert/key paths. Also tell me whether Ballerina's http client can take this OAuth2 grant declaratively instead of us calling the provider by hand, and use whichever is cleaner.

@@ -1,0 +1,94 @@
+==== Ballerina.toml ====
+[package]
+org = "anjanash"
+name = "test_project"
+version = "0.1.0"
+distribution = "2201.13.2"
+title = "test-project"
+
+[build-options]
+sticky = true
+
+
+==== agents.bal ====
+
+
+
+==== automation.bal ====
+import ballerina/log;
+
+public function main() returns error? {
+    do {
+
+    } on fail error e {
+        log:printError("Error: ", 'error = e);
+        return e;
+    }
+}
+
+
+==== config.bal ====
+// Partner API connection configurations.
+configurable string partnerApiBaseUrl = ?;
+
+// OAuth2 client-credentials grant configurations for the partner token endpoint.
+configurable string tokenUrl = ?;
+configurable string clientId = ?;
+configurable string clientSecret = ?;
+configurable string[] scopes = ?;
+
+// HTTP listener port for this service.
+configurable int servicePort = 8080;
+
+
+==== connections.bal ====
+import ballerina/http;
+
+// HTTP client for the partner REST API, secured with the OAuth2 client-credentials grant.
+// The http:Client uses the built-in oauth2 client credentials provider internally to obtain
+// an access token from the partner's token endpoint and attaches it as a bearer token to
+// every outbound request, refreshing it automatically when it expires.
+final http:Client partnerApiClient = check new (partnerApiBaseUrl, {
+    auth: {
+        tokenUrl: tokenUrl,
+        clientId: clientId,
+        clientSecret: clientSecret,
+        scopes: scopes
+    }
+});
+
+
+==== data_mappings.bal ====
+
+
+
+==== functions.bal ====
+
+
+
+==== main.bal ====
+import ballerina/http;
+import ballerina/log;
+
+service /partner on new http:Listener(servicePort) {
+
+    // Calls the partner REST API's resource at the given path and returns its JSON response.
+    // The outbound call to partnerApiClient is automatically authenticated with an OAuth2
+    // bearer access token obtained via the client-credentials grant.
+    resource function get lookup(string path) returns json|http:InternalServerError {
+        json|http:ClientError response = partnerApiClient->get(path);
+        if response is http:ClientError {
+            log:printError("Error calling partner API", 'error = response);
+            return <http:InternalServerError>{
+                body: {message: "Failed to call partner API"}
+            };
+        }
+        return response;
+    }
+}
+
+
+==== types.bal ====
+
+
+
