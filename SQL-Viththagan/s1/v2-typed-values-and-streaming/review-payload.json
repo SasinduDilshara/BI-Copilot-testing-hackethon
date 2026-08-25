@@ -1,0 +1,142 @@
+{
+  "modifiedFiles": [
+    "functions.bal",
+    "main.bal"
+  ],
+  "semanticDiffs": [
+    {
+      "changeType": 0,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/sql-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 34,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 52,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "get",
+        "servicePath": "/reporting",
+        "resourcePath": "orders/[int orderId]"
+      }
+    },
+    {
+      "changeType": 2,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/sql-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 13,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 32,
+          "offset": 5
+        }
+      },
+      "previousLineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 13,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 35,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "get",
+        "servicePath": "/reporting",
+        "resourcePath": "orders"
+      }
+    },
+    {
+      "changeType": 2,
+      "nodeKind": 0,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/sql-capture/functions.bal",
+      "lineRange": {
+        "fileName": "functions.bal",
+        "startLine": {
+          "line": 37,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 72,
+          "offset": 1
+        }
+      },
+      "previousLineRange": {
+        "fileName": "functions.bal",
+        "startLine": {
+          "line": 35,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 66,
+          "offset": 1
+        }
+      },
+      "metadata": {
+        "name": "buildOrdersQuery"
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 0,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/sql-capture/functions.bal",
+      "lineRange": {
+        "fileName": "functions.bal",
+        "startLine": {
+          "line": 78,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 93,
+          "offset": 1
+        }
+      },
+      "metadata": {
+        "name": "fetchOrders"
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 0,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/sql-capture/functions.bal",
+      "lineRange": {
+        "fileName": "functions.bal",
+        "startLine": {
+          "line": 97,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 109,
+          "offset": 1
+        }
+      },
+      "metadata": {
+        "name": "getOrderById"
+      }
+    }
+  ],
+  "loadDesignDiagrams": true,
+  "affectedPackages": [
+    "/var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/sql-capture"
+  ],
+  "isWorkspace": false,
+  "diffPackageMap": [
+    "sql-capture",
+    "sql-capture",
+    "sql-capture",
+    "sql-capture",
+    "sql-capture"
+  ],
+  "generationId": "msg-1787575709218-wnqz6pc2t"
+}

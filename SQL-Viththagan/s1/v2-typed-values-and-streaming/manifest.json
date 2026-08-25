@@ -1,0 +1,91 @@
+{
+  "n": 2,
+  "label": "typed-values-and-streaming",
+  "settled": true,
+  "approvals": 2,
+  "reviewOpened": true,
+  "reviewCards": [
+    "resource GET orders/[int orderId] + Added",
+    "resource GET orders ~ Modified",
+    "function buildOrdersQuery ~ Modified",
+    "function fetchOrders + Added",
+    "function getOrderById + Added"
+  ],
+  "reviewViews": [
+    {
+      "index": 1,
+      "label": "Design Diagram",
+      "slug": "design-diagram",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/sql-captures/sql-capture-20260824-183207/s1/v2-typed-values-and-streaming/review-views/view-01-design-diagram"
+    },
+    {
+      "index": 2,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-get-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/sql-captures/sql-capture-20260824-183207/s1/v2-typed-values-and-streaming/review-views/view-02-addition-get-main"
+    },
+    {
+      "index": 3,
+      "label": "modification: resource in main.bal",
+      "slug": "modification-get-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/sql-captures/sql-capture-20260824-183207/s1/v2-typed-values-and-streaming/review-views/view-03-modification-get-main"
+    },
+    {
+      "index": 4,
+      "label": "modification: function in functions.bal",
+      "slug": "modification-buildordersquery-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/sql-captures/sql-capture-20260824-183207/s1/v2-typed-values-and-streaming/review-views/view-04-modification-buildordersquery-functions"
+    },
+    {
+      "index": 5,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-fetchorders-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/sql-captures/sql-capture-20260824-183207/s1/v2-typed-values-and-streaming/review-views/view-05-addition-fetchorders-functions"
+    },
+    {
+      "index": 6,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-getorderbyid-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/sql-captures/sql-capture-20260824-183207/s1/v2-typed-values-and-streaming/review-views/view-06-addition-getorderbyid-functions"
+    }
+  ],
+  "tools": [
+    "LibrarySearchTool",
+    "LibraryGetTool",
+    "file_edit",
+    "getCompilationErrors",
+    "file_read",
+    "web_search"
+  ],
+  "chatScreenshots": 6
+}

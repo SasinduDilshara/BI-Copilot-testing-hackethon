@@ -1,0 +1,90 @@
+{
+  "n": 1,
+  "label": "parameterized-queries",
+  "settled": true,
+  "approvals": 0,
+  "reviewOpened": true,
+  "reviewCards": [
+    "resource GET orders + Added",
+    "function init + Added",
+    "function initializeDatabase + Added",
+    "function buildOrdersQuery + Added",
+    "Types + Added"
+  ],
+  "reviewViews": [
+    {
+      "index": 1,
+      "label": "Design Diagram",
+      "slug": "design-diagram",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/sql-captures/sql-capture-20260824-183207/s1/v1-parameterized-queries/review-views/view-01-design-diagram"
+    },
+    {
+      "index": 2,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-get-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/sql-captures/sql-capture-20260824-183207/s1/v1-parameterized-queries/review-views/view-02-addition-get-main"
+    },
+    {
+      "index": 3,
+      "label": "addition: function in main.bal",
+      "slug": "addition-init-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/sql-captures/sql-capture-20260824-183207/s1/v1-parameterized-queries/review-views/view-03-addition-init-main"
+    },
+    {
+      "index": 4,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-initializedatabase-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/sql-captures/sql-capture-20260824-183207/s1/v1-parameterized-queries/review-views/view-04-addition-initializedatabase-functions"
+    },
+    {
+      "index": 5,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-buildordersquery-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/sql-captures/sql-capture-20260824-183207/s1/v1-parameterized-queries/review-views/view-05-addition-buildordersquery-functions"
+    },
+    {
+      "index": 6,
+      "label": "addition: type in types.bal",
+      "slug": "addition-order-types",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/sql-captures/sql-capture-20260824-183207/s1/v1-parameterized-queries/review-views/view-06-addition-order-types"
+    }
+  ],
+  "tools": [
+    "LibrarySearchTool",
+    "LibraryGetTool",
+    "file_edit",
+    "getCompilationErrors",
+    "file_read"
+  ],
+  "chatScreenshots": 3
+}
