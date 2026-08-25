@@ -1,0 +1,180 @@
+==== Ballerina.toml ====
+[package]
+org = "anjanash"
+name = "test_project"
+version = "0.1.0"
+distribution = "2201.13.2"
+title = "test-project"
+
+[build-options]
+sticky = true
+
+
+==== agents.bal ====
+
+
+
+==== automation.bal ====
+import ballerina/log;
+
+public function main() returns error? {
+    do {
+
+    } on fail error e {
+        log:printError("Error: ", 'error = e);
+        return e;
+    }
+}
+
+
+==== config.bal ====
+// Port on which the admin console HTTP listener is exposed.
+configurable int servicePort = 9090;
+
+
+==== connections.bal ====
+import ballerina/auth;
+
+// File user store based Basic Auth provider. Users, passwords, and scopes are
+// sourced from the [[ballerina.auth.users]] section in Config.toml, never hardcoded here.
+final auth:ListenerFileUserStoreBasicAuthProvider fileUserStoreBasicAuthProvider = new;
+
+
+==== data_mappings.bal ====
+
+
+
+==== functions.bal ====
+import ballerina/auth;
+import ballerina/http;
+import ballerina/lang.array;
+
+# Extracts the Basic Auth credential (Base64-encoded `username:password`) from the
+# `Authorization` header of the incoming request.
+#
+# + request - The inbound HTTP request
+# + return - The Base64-encoded credential portion, or an `http:Unauthorized` if the header
+#            is missing or not a Basic Auth header
+public isolated function extractBasicCredential(http:Request request) returns string|http:Unauthorized {
+    string authorizationHeader;
+    do {
+        authorizationHeader = check request.getHeader("Authorization");
+    } on fail {
+        return {body: "Authorization header is missing"};
+    }
+
+    string basicPrefix = "Basic ";
+    if !authorizationHeader.startsWith(basicPrefix) {
+        return {body: "Authorization header is not a Basic Auth header"};
+    }
+
+    return authorizationHeader.substring(basicPrefix.length());
+}
+
+# Authenticates the given Basic Auth credential against the file user store.
+#
+# + credential - The Base64-encoded `username:password` credential
+# + return - The authenticated user's details (including scopes) or an `http:Unauthorized`
+public isolated function authenticateUser(string credential) returns AdminUser|http:Unauthorized {
+    auth:UserDetails|auth:Error userDetails = fileUserStoreBasicAuthProvider.authenticate(credential);
+    if userDetails is auth:Error {
+        return {body: "Invalid username or password"};
+    }
+    AdminUser adminUser = {username: userDetails.username, scopes: userDetails.scopes};
+    return adminUser;
+}
+
+# Authorizes the authenticated user against the expected scope(s).
+#
+# + adminUser - The authenticated user details
+# + expectedScopes - The scope or scopes required to access the resource
+# + return - `()` if authorized, or an `http:Forbidden` if the user does not have the required scope
+public isolated function authorizeUser(AdminUser adminUser, string|string[] expectedScopes) returns http:Forbidden? {
+    string[]? userScopes = adminUser.scopes;
+    if userScopes is () {
+        return {body: "User does not have any assigned scopes"};
+    }
+
+    string[] requiredScopes;
+    if expectedScopes is string {
+        requiredScopes = [expectedScopes];
+    } else {
+        requiredScopes = expectedScopes;
+    }
+
+    foreach string requiredScope in requiredScopes {
+        if array:indexOf(userScopes, requiredScope) is int {
+            return;
+        }
+    }
+    return {body: "User does not have the required scope to access this resource"};
+}
+
+
+==== main.bal ====
+import ballerina/http;
+
+listener http:Listener adminConsoleListener = new (servicePort);
+
+service /admin on adminConsoleListener {
+
+    # Returns the admin console dashboard summary.
+    # Requires the authenticated user to have the "admin" scope.
+    resource function get dashboard(http:Request request) returns json|http:Unauthorized|http:Forbidden {
+        string|http:Unauthorized credential = extractBasicCredential(request);
+        if credential is http:Unauthorized {
+            return credential;
+        }
+
+        AdminUser|http:Unauthorized adminUser = authenticateUser(credential);
+        if adminUser is http:Unauthorized {
+            return adminUser;
+        }
+
+        http:Forbidden? forbidden = authorizeUser(adminUser, "admin");
+        if forbidden is http:Forbidden {
+            return forbidden;
+        }
+
+        return {
+            message: "Welcome to the admin console",
+            username: adminUser.username,
+            scopes: adminUser.scopes
+        };
+    }
+
+    # Returns the current admin console users' assigned scopes.
+    # Requires the authenticated user to have either the "admin" or "viewer" scope.
+    resource function get profile/scopes(http:Request request) returns json|http:Unauthorized|http:Forbidden {
+        string|http:Unauthorized credential = extractBasicCredential(request);
+        if credential is http:Unauthorized {
+            return credential;
+        }
+
+        AdminUser|http:Unauthorized adminUser = authenticateUser(credential);
+        if adminUser is http:Unauthorized {
+            return adminUser;
+        }
+
+        http:Forbidden? forbidden = authorizeUser(adminUser, ["admin", "viewer"]);
+        if forbidden is http:Forbidden {
+            return forbidden;
+        }
+
+        return {
+            username: adminUser.username,
+            scopes: adminUser.scopes
+        };
+    }
+}
+
+
+==== types.bal ====
+import ballerina/auth;
+
+# Represents the authenticated admin console user along with their authorized scopes.
+public type AdminUser record {|
+    *auth:UserDetails;
+|};
+
+

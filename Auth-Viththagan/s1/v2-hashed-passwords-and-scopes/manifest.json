@@ -1,0 +1,104 @@
+{
+  "n": 2,
+  "label": "hashed-passwords-and-scopes",
+  "settled": true,
+  "approvals": 1,
+  "reviewOpened": true,
+  "reviewCards": [
+    "resource GET profile/scopes ~ Modified",
+    "resource GET dashboard ~ Modified",
+    "function extractBasicCredential ~ Modified",
+    "function authenticateUser ~ Modified",
+    "function authenticateAndAuthorize + Added",
+    "Types + Added"
+  ],
+  "reviewViews": [
+    {
+      "index": 1,
+      "label": "Design Diagram",
+      "slug": "design-diagram",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/auth-captures/auth-capture-20260824-194444/s1/v2-hashed-passwords-and-scopes/review-views/view-01-design-diagram"
+    },
+    {
+      "index": 2,
+      "label": "modification: resource in main.bal",
+      "slug": "modification-get-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/auth-captures/auth-capture-20260824-194444/s1/v2-hashed-passwords-and-scopes/review-views/view-02-modification-get-main"
+    },
+    {
+      "index": 3,
+      "label": "modification: resource in main.bal",
+      "slug": "modification-get-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/auth-captures/auth-capture-20260824-194444/s1/v2-hashed-passwords-and-scopes/review-views/view-03-modification-get-main"
+    },
+    {
+      "index": 4,
+      "label": "modification: function in functions.bal",
+      "slug": "modification-extractbasiccredential-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/auth-captures/auth-capture-20260824-194444/s1/v2-hashed-passwords-and-scopes/review-views/view-04-modification-extractbasiccredential-functions"
+    },
+    {
+      "index": 5,
+      "label": "modification: function in functions.bal",
+      "slug": "modification-authenticateuser-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/auth-captures/auth-capture-20260824-194444/s1/v2-hashed-passwords-and-scopes/review-views/view-05-modification-authenticateuser-functions"
+    },
+    {
+      "index": 6,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-authenticateandauthorize-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/auth-captures/auth-capture-20260824-194444/s1/v2-hashed-passwords-and-scopes/review-views/view-06-addition-authenticateandauthorize-functions"
+    },
+    {
+      "index": 7,
+      "label": "addition: type in types.bal",
+      "slug": "addition-hasheduserstoreentry-types",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/auth-captures/auth-capture-20260824-194444/s1/v2-hashed-passwords-and-scopes/review-views/view-07-addition-hasheduserstoreentry-types"
+    }
+  ],
+  "tools": [
+    "LibrarySearchTool",
+    "LibraryGetTool",
+    "web_search",
+    "file_read",
+    "file_write",
+    "getCompilationErrors",
+    "file_edit"
+  ],
+  "chatScreenshots": 8
+}
