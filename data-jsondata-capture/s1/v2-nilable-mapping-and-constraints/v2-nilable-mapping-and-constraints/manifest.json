@@ -1,0 +1,61 @@
+{
+  "n": 2,
+  "label": "nilable-mapping-and-constraints",
+  "settled": true,
+  "approvals": 0,
+  "reviewOpened": true,
+  "reviewCards": [
+    "resource POST feed ~ Modified",
+    "Types ~ Modified"
+  ],
+  "reviewViews": [
+    {
+      "index": 1,
+      "label": "Design Diagram",
+      "slug": "design-diagram",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/data-jsondata-captures/data-jsondata-capture-20260824-191331/s1/v2-nilable-mapping-and-constraints/review-views/view-01-design-diagram"
+    },
+    {
+      "index": 2,
+      "label": "modification: resource in main.bal",
+      "slug": "modification-post-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/data-jsondata-captures/data-jsondata-capture-20260824-191331/s1/v2-nilable-mapping-and-constraints/review-views/view-02-modification-post-main"
+    },
+    {
+      "index": 3,
+      "label": "modification: type in types.bal",
+      "slug": "modification-orderfeed+lineitem+email-types",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/data-jsondata-captures/data-jsondata-capture-20260824-191331/s1/v2-nilable-mapping-and-constraints/review-views/view-03-modification-orderfeed+lineitem+email-types"
+    }
+  ],
+  "tools": [
+    "invoke_skill",
+    "LibrarySearchTool",
+    "LibraryGetTool",
+    "file_write",
+    "getCompilationErrors",
+    "file_batch_edit",
+    "file_read",
+    "file_edit",
+    "runBallerinaPackage",
+    "getServiceLogs",
+    "hurlRunnerTool",
+    "stopBallerinaService"
+  ],
+  "chatScreenshots": 7
+}
