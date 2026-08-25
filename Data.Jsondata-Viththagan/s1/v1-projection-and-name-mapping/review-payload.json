@@ -1,0 +1,118 @@
+{
+  "modifiedFiles": [
+    "types.bal",
+    "main.bal"
+  ],
+  "semanticDiffs": [
+    {
+      "changeType": 0,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/data-jsondata-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 8,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 27,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "post",
+        "servicePath": "/orders",
+        "resourcePath": "feed"
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 2,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/data-jsondata-capture/types.bal",
+      "lineRange": {
+        "fileName": "types.bal",
+        "startLine": {
+          "line": 32,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 35,
+          "offset": 3
+        }
+      },
+      "metadata": {
+        "name": "OrderFeedAck"
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 2,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/data-jsondata-capture/types.bal",
+      "lineRange": {
+        "fileName": "types.bal",
+        "startLine": {
+          "line": 17,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 29,
+          "offset": 3
+        }
+      },
+      "metadata": {
+        "name": "OrderFeed"
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 2,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/data-jsondata-capture/types.bal",
+      "lineRange": {
+        "fileName": "types.bal",
+        "startLine": {
+          "line": 3,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 12,
+          "offset": 3
+        }
+      },
+      "metadata": {
+        "name": "LineItem"
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 2,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/data-jsondata-capture/types.bal",
+      "lineRange": {
+        "fileName": "types.bal",
+        "startLine": {
+          "line": 38,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 40,
+          "offset": 3
+        }
+      },
+      "metadata": {
+        "name": "OrderFeedError"
+      }
+    }
+  ],
+  "loadDesignDiagrams": true,
+  "affectedPackages": [
+    "/var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/data-jsondata-capture"
+  ],
+  "isWorkspace": false,
+  "diffPackageMap": [
+    "data-jsondata-capture",
+    "data-jsondata-capture",
+    "data-jsondata-capture",
+    "data-jsondata-capture",
+    "data-jsondata-capture"
+  ],
+  "generationId": "msg-1787577924506-k0vghiwly"
+}
