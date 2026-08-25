@@ -1,0 +1,1 @@
+After a file is processed successfully, move it to a /processed directory; if processing fails, move it to /error instead of leaving it to be re-picked next poll. Route orders_*.csv and returns_*.csv to two different handler methods. Malformed CSV rows must be skipped and logged rather than failing the whole file.
