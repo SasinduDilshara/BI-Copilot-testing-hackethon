@@ -1,0 +1,1 @@
+A teammate implemented the status filter as `... WHERE status = '` + request.status + `'` — concatenating the raw request value into the query string. Explain the security risk, show how the sql module's parameterized query prevents it, and fix the endpoint. Would the compiler have caught this?
