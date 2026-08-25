@@ -47,4 +47,28 @@ service /gateway on gatewayListener {
             body: validationErrorDetail
         };
     }
+
+    resource function post revoke(@http:Payload TokenRevocationRequest tokenRevocationRequest)
+            returns TokenRevocationResult {
+
+        string token = tokenRevocationRequest.token;
+        string reason = tokenRevocationRequest.reason;
+
+        boolean isCached = tokenValidationCache.hasKey(token);
+        if isCached {
+            error? invalidateResult = tokenValidationCache.invalidate(token);
+            if invalidateResult is error {
+                log:printError("Failed to invalidate token from cache", invalidateResult);
+            }
+            return {
+                revoked: true,
+                reason: reason
+            };
+        }
+
+        return {
+            revoked: false,
+            reason: "Token was not in the active cache — it may have already expired or was never validated through this gateway"
+        };
+    }
 }

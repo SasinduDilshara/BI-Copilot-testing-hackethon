@@ -26,3 +26,15 @@ type ValidationErrorDetail record {|
     string message;
     string token;
 |};
+
+// Request payload for the token revocation endpoint.
+type TokenRevocationRequest record {|
+    string token;
+    string reason;
+|};
+
+// Result of a token revocation attempt.
+type TokenRevocationResult record {|
+    boolean revoked;
+    string reason;
+|};
