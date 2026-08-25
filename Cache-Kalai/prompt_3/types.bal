@@ -17,3 +17,18 @@ public type RateLimitResponse record {|
     boolean blocked = false;
     int blockExpiresInSeconds?;
 |};
+
+# Represents the current rate limit status for a client across all endpoints.
+public type ClientRateLimitStatus record {|
+    string clientId;
+    boolean isBlocked;
+    string[] activeEndpoints;
+    map<int> counters;
+|};
+
+# Represents the result of resetting a client's rate limit data.
+public type ClientResetResult record {|
+    string clientId;
+    boolean reset;
+    int clearedEntryCount;
+|};

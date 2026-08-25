@@ -63,6 +63,69 @@ service /ratelimit on new http:Listener(servicePort) {
         http:Ok okResponse = {body: rateLimitResponse};
         return okResponse;
     }
+
+    resource function get status/[string clientId]() returns http:Ok {
+        boolean isBlocked = blockedClientsCache.hasKey(clientId);
+        string[] clientKeys = getClientRateLimitKeys(clientId);
+
+        string[] activeEndpoints = [];
+        map<int> counters = {};
+        foreach string cacheKey in clientKeys {
+            string endpoint = extractEndpointFromKey(cacheKey, clientId);
+            any|cache:Error cachedValue = rateLimitCache.get(cacheKey);
+            int endpointCount = 0;
+            if cachedValue is int {
+                endpointCount = cachedValue;
+            }
+            activeEndpoints.push(endpoint);
+            counters[endpoint] = endpointCount;
+        }
+
+        ClientRateLimitStatus clientRateLimitStatus = {
+            clientId: clientId,
+            isBlocked: isBlocked,
+            activeEndpoints: activeEndpoints,
+            counters: counters
+        };
+        http:Ok okResponse = {body: clientRateLimitStatus};
+        return okResponse;
+    }
+
+    resource function delete clients/[string clientId]() returns http:Ok {
+        string[] clientKeys = getClientRateLimitKeys(clientId);
+        int clearedEntryCount = 0;
+
+        foreach string cacheKey in clientKeys {
+            error? invalidateError = rateLimitCache.invalidate(cacheKey);
+            if invalidateError is () {
+                clearedEntryCount += 1;
+            }
+        }
+
+        boolean wasBlocked = blockedClientsCache.hasKey(clientId);
+        if wasBlocked {
+            error? blockedInvalidateError = blockedClientsCache.invalidate(clientId);
+            if blockedInvalidateError is () {
+                clearedEntryCount += 1;
+            }
+        }
+
+        boolean hadViolations = violationsCache.hasKey(clientId);
+        if hadViolations {
+            error? violationsInvalidateError = violationsCache.invalidate(clientId);
+            if violationsInvalidateError is () {
+                clearedEntryCount += 1;
+            }
+        }
+
+        ClientResetResult clientResetResult = {
+            clientId: clientId,
+            reset: true,
+            clearedEntryCount: clearedEntryCount
+        };
+        http:Ok okResponse = {body: clientResetResult};
+        return okResponse;
+    }
 }
 
 function buildTooManyRequestsResponse(int currentCount, int limitPerMinute) returns http:TooManyRequests {

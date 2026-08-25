@@ -32,3 +32,17 @@ function recordViolationAndCheckBlock(string clientId) returns boolean {
     }
     return false;
 }
+
+function getClientRateLimitKeys(string clientId) returns string[] {
+    string clientKeyPrefix = clientId + ":";
+    string[] allKeys = rateLimitCache.keys();
+    string[] clientKeys = from string cacheKey in allKeys
+        where cacheKey.startsWith(clientKeyPrefix)
+        select cacheKey;
+    return clientKeys;
+}
+
+function extractEndpointFromKey(string cacheKey, string clientId) returns string {
+    string clientKeyPrefix = clientId + ":";
+    return cacheKey.substring(clientKeyPrefix.length());
+}
