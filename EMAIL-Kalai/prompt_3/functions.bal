@@ -1,4 +1,52 @@
 import ballerina/email;
+import ballerina/mime;
+
+function validateOnboardRequest(OnboardRequest onboardRequest) returns ValidationErrorDetail? {
+    if !onboardRequest.personalEmail.includes("@") {
+        return {'field: "personalEmail", reason: "must contain '@'"};
+    }
+    if !onboardRequest.managerEmail.includes("@") {
+        return {'field: "managerEmail", reason: "must contain '@'"};
+    }
+    return ();
+}
+
+function createCompanyPolicyAttachment(string employeeId) returns mime:Entity {
+    string policyContent = string `Company Policy Summary
+=======================
+1. Working Hours: Standard working hours are 9 AM to 5 PM, Monday to Friday.
+2. Code of Conduct: Treat all colleagues with respect and professionalism.
+3. Leave Policy: Submit leave requests at least two weeks in advance.
+4. Confidentiality: Do not share confidential company information externally.
+5. IT Usage: Company equipment must be used responsibly and for business purposes.
+`;
+    mime:Entity policyAttachment = new;
+    mime:ContentDisposition policyDisposition = new;
+    policyDisposition.fileName = string `company-policy-${employeeId}.txt`;
+    policyDisposition.disposition = "attachment";
+    policyAttachment.setContentDisposition(policyDisposition);
+    policyAttachment.setText(policyContent, contentType = "text/plain");
+    return policyAttachment;
+}
+
+function createItSetupGuideAttachment() returns mime:Entity {
+    string setupGuideContent = string `IT Setup Guide
+==============
+1. Log in to your company laptop using the credentials provided by IT.
+2. Set up your company email account on your laptop and mobile device.
+3. Install the VPN client and connect using your credentials.
+4. Set up multi-factor authentication for your company accounts.
+5. Install required software listed by your department.
+6. Contact the IT helpdesk if you face any issues during setup.
+`;
+    mime:Entity setupGuideAttachment = new;
+    mime:ContentDisposition setupGuideDisposition = new;
+    setupGuideDisposition.fileName = "it-setup-guide.txt";
+    setupGuideDisposition.disposition = "attachment";
+    setupGuideAttachment.setContentDisposition(setupGuideDisposition);
+    setupGuideAttachment.setText(setupGuideContent, contentType = "text/plain");
+    return setupGuideAttachment;
+}
 
 function checkProvisioningConfirmation(string employeeId) returns string? {
     email:PopConfiguration popConfig = {
@@ -50,6 +98,9 @@ function sendWelcomeEmail(OnboardRequest onboardRequest) returns email:Error? {
         </body>
         </html>
     `;
+    mime:Entity companyPolicyAttachment = createCompanyPolicyAttachment(onboardRequest.employeeId);
+    mime:Entity itSetupGuideAttachment = createItSetupGuideAttachment();
+
     return smtpClient->send(
         to = onboardRequest.personalEmail,
         subject = "Welcome to the Company!",
@@ -58,7 +109,8 @@ function sendWelcomeEmail(OnboardRequest onboardRequest) returns email:Error? {
         htmlBody = htmlBody,
         cc = hrEmail,
         bcc = complianceEmail,
-        replyTo = hrEmail
+        replyTo = hrEmail,
+        attachments = [companyPolicyAttachment, itSetupGuideAttachment]
     );
 }
 

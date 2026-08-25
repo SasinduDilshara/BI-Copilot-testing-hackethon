@@ -24,3 +24,9 @@ type ProvisioningCheckResponse record {|
     string provisioningStatus;
     string provisioningConfirmation?;
 |};
+
+// Strongly typed validation error detail for invalid onboarding requests.
+type ValidationErrorDetail record {|
+    string 'field;
+    string reason;
+|};

@@ -3,7 +3,12 @@ import ballerina/http;
 
 service /hr on new http:Listener(7070) {
 
-    resource function post onboard(@http:Payload OnboardRequest onboardRequest) returns OnboardResponse|http:InternalServerError {
+    resource function post onboard(@http:Payload OnboardRequest onboardRequest) returns OnboardResponse|http:BadRequest|http:InternalServerError {
+        ValidationErrorDetail? validationError = validateOnboardRequest(onboardRequest);
+        if validationError is ValidationErrorDetail {
+            return <http:BadRequest>{body: validationError};
+        }
+
         string[] failedRecipients = [];
         int emailsSent = 0;
 
