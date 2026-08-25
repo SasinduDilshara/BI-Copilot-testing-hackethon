@@ -1,0 +1,198 @@
+==== Ballerina.toml ====
+[package]
+org = "anjanash"
+name = "test_project"
+version = "0.1.0"
+distribution = "2201.13.2"
+title = "test-project"
+
+[build-options]
+sticky = true
+
+
+==== agents.bal ====
+
+
+
+==== automation.bal ====
+import ballerina/log;
+
+public function main() returns error? {
+    do {
+
+    } on fail error e {
+        log:printError("Error: ", 'error = e);
+        return e;
+    }
+}
+
+
+==== config.bal ====
+
+
+
+==== connections.bal ====
+
+
+
+==== data_mappings.bal ====
+
+
+
+==== functions.bal ====
+import ballerina/time;
+
+final map<ServiceStatus> serviceStatusStore = {
+    "orders-service": {name: "orders-service", healthy: true, replicas: 3, lastDeployedAt: "2026-08-20T10:15:00Z"},
+    "payments-service": {name: "payments-service", healthy: false, replicas: 2, lastDeployedAt: "2026-08-18T08:30:00Z"},
+    "inventory-service": {name: "inventory-service", healthy: true, replicas: 4, lastDeployedAt: "2026-08-22T14:45:00Z"}
+};
+
+final DeploymentRecord[] deploymentHistory = [
+    {serviceName: "orders-service", environment: "production", 'version: "1.4.2", deployedAt: "2026-08-20T10:15:00Z"},
+    {serviceName: "payments-service", environment: "production", 'version: "2.1.0", deployedAt: "2026-08-18T08:30:00Z"},
+    {serviceName: "inventory-service", environment: "staging", 'version: "3.0.1", deployedAt: "2026-08-22T14:45:00Z"},
+    {serviceName: "orders-service", environment: "staging", 'version: "1.5.0-rc1", deployedAt: "2026-08-23T09:00:00Z"},
+    {serviceName: "payments-service", environment: "staging", 'version: "2.2.0-rc2", deployedAt: "2026-08-21T11:20:00Z"}
+];
+
+# Looks up the current status record for the given service name.
+#
+# + serviceName - Name of the service to look up
+# + return - The service status record, or an error if the service is not found
+function findServiceStatus(string serviceName) returns ServiceStatus|error {
+    if serviceStatusStore.hasKey(serviceName) {
+        return serviceStatusStore.get(serviceName);
+    }
+    return error(string `Service not found: ${serviceName}`);
+}
+
+# Retrieves the most recent deployments for the given environment, limited to the requested count.
+#
+# + environment - Environment to filter deployments by
+# + count - Maximum number of deployment records to return
+# + return - An array of matching deployment records
+function findRecentDeployments(string environment, int count) returns DeploymentRecord[]|error {
+    if count <= 0 {
+        return error("count must be a positive integer");
+    }
+    DeploymentRecord[] matching = from DeploymentRecord deployment in deploymentHistory
+        where deployment.environment == environment
+        select deployment;
+    if matching.length() <= count {
+        return matching;
+    }
+    return matching.slice(0, count);
+}
+
+# Triggers a restart of the given service in the given environment and updates its recorded status.
+#
+# + serviceName - Name of the service to restart
+# + environment - Environment the service should be restarted in
+# + return - The outcome of the restart operation, or an error if the service is not found
+function triggerServiceRestart(string serviceName, string environment) returns RestartResult|error {
+    if !serviceStatusStore.hasKey(serviceName) {
+        return error(string `Service not found: ${serviceName}`);
+    }
+    ServiceStatus previousStatus = serviceStatusStore.get(serviceName);
+    string restartedAt = time:utcToString(time:utcNow());
+    ServiceStatus updatedStatus = {
+        name: previousStatus.name,
+        healthy: true,
+        replicas: previousStatus.replicas,
+        lastDeployedAt: previousStatus.lastDeployedAt
+    };
+    serviceStatusStore[serviceName] = updatedStatus;
+    return {
+        serviceName,
+        environment,
+        restarted: true,
+        message: string `Service '${serviceName}' restarted successfully in '${environment}' at ${restartedAt}`
+    };
+}
+
+
+==== main.bal ====
+import ballerina/mcp;
+
+configurable int serverPort = 9090;
+
+listener mcp:Listener mcpListener = check new (serverPort);
+
+@mcp:ServiceConfig {
+    info: {
+        name: "Deployment Ops MCP Server",
+        version: "1.0.0"
+    }
+}
+service mcp:Service /mcp on mcpListener {
+
+    # Get the current deployment status of a service
+    #
+    # + serviceName - The name of the service to check
+    # + return - The current status of the service, or an error if the service is not found
+    remote function getServiceStatus(string serviceName) returns ServiceStatus|error {
+        return findServiceStatus(serviceName);
+    }
+
+    # List the most recent deployments for a given environment
+    #
+    # + environment - The environment to list deployments for (e.g. production, staging)
+    # + count - The maximum number of recent deployments to return
+    # + return - An array of recent deployment records, or an error if the input is invalid
+    remote function listRecentDeployments(string environment, int count) returns DeploymentRecord[]|error {
+        return findRecentDeployments(environment, count);
+    }
+
+    # Restart a service in a given environment
+    #
+    # + serviceName - The name of the service to restart
+    # + environment - The environment in which to restart the service
+    # + return - The result of the restart operation, or an error if the service is not found
+    remote function restartService(string serviceName, string environment) returns RestartResult|error {
+        return triggerServiceRestart(serviceName, environment);
+    }
+}
+
+
+==== types.bal ====
+# Represents the current status of a deployed service.
+#
+# + name - Name of the service
+# + healthy - Whether the service is currently healthy
+# + replicas - Number of running replicas
+# + lastDeployedAt - Timestamp of the last deployment in ISO 8601 format
+public type ServiceStatus record {|
+    string name;
+    boolean healthy;
+    int replicas;
+    string lastDeployedAt;
+|};
+
+# Represents a single deployment event for a service.
+#
+# + serviceName - Name of the service that was deployed
+# + environment - Environment the deployment targeted
+# + 'version - Version or build identifier that was deployed
+# + deployedAt - Timestamp of the deployment in ISO 8601 format
+public type DeploymentRecord record {|
+    string serviceName;
+    string environment;
+    string 'version;
+    string deployedAt;
+|};
+
+# Represents the outcome of a service restart operation.
+#
+# + serviceName - Name of the service that was restarted
+# + environment - Environment the service was restarted in
+# + restarted - Whether the restart was successfully triggered
+# + message - Human readable outcome message
+public type RestartResult record {|
+    string serviceName;
+    string environment;
+    boolean restarted;
+    string message;
+|};
+
+

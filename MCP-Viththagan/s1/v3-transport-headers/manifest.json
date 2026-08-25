@@ -1,0 +1,80 @@
+{
+  "n": 3,
+  "label": "transport-headers",
+  "settled": true,
+  "approvals": 0,
+  "reviewOpened": true,
+  "reviewCards": [
+    "resource RESTARTSERVICE ~ Modified",
+    "function triggerServiceRestart ~ Modified",
+    "function extractAuditContext + Added",
+    "Types + Added"
+  ],
+  "reviewViews": [
+    {
+      "index": 1,
+      "label": "Design Diagram",
+      "slug": "design-diagram",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v3-transport-headers/review-views/view-01-design-diagram"
+    },
+    {
+      "index": 2,
+      "label": "modification: resource in main.bal",
+      "slug": "modification-restartservice-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v3-transport-headers/review-views/view-02-modification-restartservice-main"
+    },
+    {
+      "index": 3,
+      "label": "modification: function in functions.bal",
+      "slug": "modification-triggerservicerestart-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v3-transport-headers/review-views/view-03-modification-triggerservicerestart-functions"
+    },
+    {
+      "index": 4,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-extractauditcontext-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v3-transport-headers/review-views/view-04-addition-extractauditcontext-functions"
+    },
+    {
+      "index": 5,
+      "label": "addition: type in types.bal",
+      "slug": "addition-auditcontext-types",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v3-transport-headers/review-views/view-05-addition-auditcontext-types"
+    }
+  ],
+  "tools": [
+    "LibrarySearchTool",
+    "LibraryGetTool",
+    "file_write",
+    "getCompilationErrors",
+    "file_read",
+    "web_search",
+    "file_edit"
+  ],
+  "chatScreenshots": 7
+}
