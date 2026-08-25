@@ -68,6 +68,22 @@ service /products on new http:Listener(servicePort) {
         return updatedProduct;
     }
 
+    // Returns current cache health statistics for monitoring purposes.
+    resource function get cache/stats() returns CacheStats {
+        int currentSize = productCache.size();
+        int maxCapacity = productCache.capacity();
+        string[] cachedKeys = productCache.keys();
+        decimal utilizationPercent = maxCapacity > 0 ? (<decimal>currentSize / <decimal>maxCapacity) * 100 : 0;
+
+        CacheStats cacheStats = {
+            currentSize: currentSize,
+            maxCapacity: maxCapacity,
+            cachedKeys: cachedKeys,
+            utilizationPercent: utilizationPercent
+        };
+        return cacheStats;
+    }
+
     // Flushes the entire product cache.
     resource function delete cache() returns CacheFlushResponse|http:InternalServerError {
         int entryCountBeforeFlush = productCache.size();

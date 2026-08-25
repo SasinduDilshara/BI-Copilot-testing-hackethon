@@ -26,3 +26,11 @@ public type CacheFlushResponse record {|
     string flushedAt;
     int flushedEntryCount;
 |};
+
+// Cache health statistics used for monitoring.
+public type CacheStats record {|
+    int currentSize;
+    int maxCapacity;
+    string[] cachedKeys;
+    decimal utilizationPercent;
+|};
