@@ -1,0 +1,105 @@
+{
+  "n": 3,
+  "label": "ha-coordination-and-file-age",
+  "settled": true,
+  "approvals": 1,
+  "reviewOpened": true,
+  "reviewCards": [
+    "resource ONERROR ~ Modified",
+    "resource ONFILECSV ~ Modified",
+    "resource ONERROR - Deleted",
+    "resource ONFILECSV - Deleted",
+    "resource ONERROR + Added",
+    "resource ONFILECSV + Added"
+  ],
+  "reviewViews": [
+    {
+      "index": 1,
+      "label": "Design Diagram",
+      "slug": "design-diagram",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/ftp-captures/ftp-capture-20260825-102319/s1/v3-ha-coordination-and-file-age/review-views/view-01-design-diagram"
+    },
+    {
+      "index": 2,
+      "label": "modification: resource in main.bal",
+      "slug": "modification-onerror-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/ftp-captures/ftp-capture-20260825-102319/s1/v3-ha-coordination-and-file-age/review-views/view-02-modification-onerror-main"
+    },
+    {
+      "index": 3,
+      "label": "modification: resource in main.bal",
+      "slug": "modification-onfilecsv-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/ftp-captures/ftp-capture-20260825-102319/s1/v3-ha-coordination-and-file-age/review-views/view-03-modification-onfilecsv-main"
+    },
+    {
+      "index": 4,
+      "label": "deletion: resource in main.bal",
+      "slug": "deletion-onerror-main",
+      "modes": {
+        "diff": "captured",
+        "new": "disabled",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/ftp-captures/ftp-capture-20260825-102319/s1/v3-ha-coordination-and-file-age/review-views/view-04-deletion-onerror-main"
+    },
+    {
+      "index": 5,
+      "label": "deletion: resource in main.bal",
+      "slug": "deletion-onfilecsv-main",
+      "modes": {
+        "diff": "captured",
+        "new": "disabled",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/ftp-captures/ftp-capture-20260825-102319/s1/v3-ha-coordination-and-file-age/review-views/view-05-deletion-onfilecsv-main"
+    },
+    {
+      "index": 6,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-onerror-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/ftp-captures/ftp-capture-20260825-102319/s1/v3-ha-coordination-and-file-age/review-views/view-06-addition-onerror-main"
+    },
+    {
+      "index": 7,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-onfilecsv-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/ftp-captures/ftp-capture-20260825-102319/s1/v3-ha-coordination-and-file-age/review-views/view-07-addition-onfilecsv-main"
+    }
+  ],
+  "tools": [
+    "LibrarySearchTool",
+    "LibraryGetTool",
+    "file_read",
+    "file_write",
+    "file_edit",
+    "getCompilationErrors",
+    "web_search",
+    "file_batch_edit"
+  ],
+  "chatScreenshots": 6
+}
