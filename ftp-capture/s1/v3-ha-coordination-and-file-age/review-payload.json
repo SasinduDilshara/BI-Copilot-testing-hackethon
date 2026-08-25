@@ -1,0 +1,171 @@
+{
+  "modifiedFiles": [
+    "config.bal",
+    "connections.bal",
+    "main.bal"
+  ],
+  "semanticDiffs": [
+    {
+      "changeType": 2,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/ftp-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 62,
+          "offset": 8
+        },
+        "endLine": {
+          "line": 62,
+          "offset": 106
+        }
+      },
+      "previousLineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 26,
+          "offset": 8
+        },
+        "endLine": {
+          "line": 26,
+          "offset": 105
+        }
+      },
+      "metadata": {
+        "accessor": "onError",
+        "servicePath": "",
+        "resourcePath": ""
+      }
+    },
+    {
+      "changeType": 2,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/ftp-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 49,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 59,
+          "offset": 5
+        }
+      },
+      "previousLineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 13,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 23,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "onFileCsv",
+        "servicePath": "",
+        "resourcePath": ""
+      }
+    },
+    {
+      "changeType": 1,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/ftp-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 53,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 55,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "onError",
+        "servicePath": "",
+        "resourcePath": ""
+      }
+    },
+    {
+      "changeType": 1,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/ftp-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 41,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 51,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "onFileCsv",
+        "servicePath": "",
+        "resourcePath": ""
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/ftp-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 29,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 31,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "onError",
+        "servicePath": "",
+        "resourcePath": ""
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/ftp-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 17,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 27,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "onFileCsv",
+        "servicePath": "",
+        "resourcePath": ""
+      }
+    }
+  ],
+  "loadDesignDiagrams": true,
+  "affectedPackages": [
+    "/var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/ftp-capture"
+  ],
+  "isWorkspace": false,
+  "diffPackageMap": [
+    "ftp-capture",
+    "ftp-capture",
+    "ftp-capture",
+    "ftp-capture",
+    "ftp-capture",
+    "ftp-capture"
+  ],
+  "generationId": "msg-1787632970232-7lxukmyf1"
+}

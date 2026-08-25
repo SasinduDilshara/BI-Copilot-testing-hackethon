@@ -1,0 +1,221 @@
+==== Ballerina.toml ====
+[package]
+org = "anjanash"
+name = "test_project"
+version = "0.1.0"
+distribution = "2201.13.2"
+title = "test-project"
+
+[build-options]
+sticky = true
+
+
+==== agents.bal ====
+
+
+
+==== automation.bal ====
+// This integration is triggered by the SFTP listener defined in main.bal;
+// no separate automation entry point is required.
+
+
+==== config.bal ====
+// SFTP server connection details.
+configurable string sftpHost = ?;
+configurable int sftpPort = 22;
+configurable string sftpUsername = ?;
+
+// SSH private key based authentication (no hardcoded secrets).
+configurable string sftpPrivateKeyPath = ?;
+configurable string sftpPrivateKeyPassword = ?;
+
+// Known-hosts file used to verify the SFTP server's identity.
+configurable string sftpKnownHostsPath = ?;
+
+// Remote drop directory that is polled for incoming partner order CSV files
+// and the polling interval (in seconds).
+configurable string ordersDropPath = ?;
+configurable decimal pollingInterval = 60;
+
+// Directories that successfully and unsuccessfully processed files are moved
+// to, so they are not re-picked on the next poll.
+configurable string processedDirPath = ?;
+configurable string errorDirPath = ?;
+
+// Minimum file age (in seconds) before a dropped file is considered stable
+// enough to process, so files still being uploaded are not picked up.
+configurable decimal minFileAge = 30;
+
+// Distributed coordination settings so only one of the multiple listener
+// instances actively polls at a time, while the others remain warm standbys.
+configurable string coordinationMemberId = ?;
+configurable string coordinationGroup = ?;
+configurable int coordinationHeartbeatFrequency = 1;
+configurable int coordinationLivenessCheckInterval = 30;
+
+// Shared coordination database connection details used to elect the active
+// listener instance among the warm-standby group.
+configurable string coordinationDbHost = ?;
+configurable int coordinationDbPort = 3306;
+configurable string coordinationDbUser = ?;
+configurable string coordinationDbPassword = ?;
+configurable string coordinationDbName = ?;
+
+
+==== connections.bal ====
+import ballerina/ftp;
+import ballerina/task;
+
+// Coordination database configuration shared by all listener instances in the
+// same coordination group, used to elect a single active poller while the
+// remaining instances stay in warm standby.
+task:MysqlConfig coordinationDatabaseConfig = {
+    host: coordinationDbHost,
+    port: coordinationDbPort,
+    user: coordinationDbUser,
+    password: coordinationDbPassword,
+    database: coordinationDbName
+};
+
+listener ftp:Listener orderFileListener = check new ({
+    protocol: ftp:SFTP,
+    host: sftpHost,
+    port: sftpPort,
+    auth: {
+        credentials: {
+            username: sftpUsername
+        },
+        privateKey: {
+            path: sftpPrivateKeyPath,
+            password: sftpPrivateKeyPassword
+        }
+    },
+    sftpSshKnownHosts: sftpKnownHostsPath,
+    pollingInterval: pollingInterval,
+    csvFailSafe: {
+        contentType: ftp:RAW_AND_METADATA
+    },
+    coordination: {
+        databaseConfig: coordinationDatabaseConfig,
+        memberId: coordinationMemberId,
+        coordinationGroup: coordinationGroup,
+        heartbeatFrequency: coordinationHeartbeatFrequency,
+        livenessCheckInterval: coordinationLivenessCheckInterval
+    }
+});
+
+
+==== data_mappings.bal ====
+
+
+
+==== functions.bal ====
+import ballerina/log;
+
+// Processes a single, strongly typed partner order and executes downstream
+// business logic for it.
+function processOrder(Order 'order) returns error? {
+    log:printInfo("Processing partner order", orderId = 'order.orderId, customerId = 'order.customerId,
+            productCode = 'order.productCode, quantity = 'order.quantity);
+}
+
+// Processes a single, strongly typed partner return and executes downstream
+// business logic for it.
+function processReturn(Return partnerReturn) returns error? {
+    log:printInfo("Processing partner return", returnId = partnerReturn.returnId, orderId = partnerReturn.orderId,
+            productCode = partnerReturn.productCode, quantity = partnerReturn.quantity);
+}
+
+
+==== main.bal ====
+import ballerina/ftp;
+import ballerina/log;
+
+// Handles partner order CSV files (orders_*.csv). Malformed rows are skipped
+// and logged via the listener's csvFailSafe configuration instead of failing
+// the whole file. On success the file is moved to the processed directory; on
+// failure it is moved to the error directory instead of being re-picked.
+@ftp:ServiceConfig {
+    path: ordersDropPath,
+    fileNamePattern: "orders_.*\\.csv",
+    fileAgeFilter: {
+        minAge: minFileAge,
+        ageCalculationMode: ftp:LAST_MODIFIED
+    }
+}
+service on orderFileListener {
+
+    @ftp:FunctionConfig {
+        afterProcess: {moveTo: processedDirPath},
+        afterError: {moveTo: errorDirPath}
+    }
+    remote function onFileCsv(Order[] contents, ftp:FileInfo fileInfo) returns error? {
+        log:printInfo("New partner order file received", fileName = fileInfo.name, path = fileInfo.path);
+
+        foreach Order 'order in contents {
+            check processOrder('order);
+        }
+    }
+
+    remote function onError(ftp:Error ftpError) returns error? {
+        log:printError("Error while polling the SFTP drop directory for order files", 'error = ftpError);
+    }
+}
+
+// Handles partner return CSV files (returns_*.csv). Malformed rows are
+// skipped and logged via the listener's csvFailSafe configuration instead of
+// failing the whole file. On success the file is moved to the processed
+// directory; on failure it is moved to the error directory instead of being
+// re-picked.
+@ftp:ServiceConfig {
+    path: ordersDropPath,
+    fileNamePattern: "returns_.*\\.csv",
+    fileAgeFilter: {
+        minAge: minFileAge,
+        ageCalculationMode: ftp:LAST_MODIFIED
+    }
+}
+service on orderFileListener {
+
+    @ftp:FunctionConfig {
+        afterProcess: {moveTo: processedDirPath},
+        afterError: {moveTo: errorDirPath}
+    }
+    remote function onFileCsv(Return[] contents, ftp:FileInfo fileInfo) returns error? {
+        log:printInfo("New partner return file received", fileName = fileInfo.name, path = fileInfo.path);
+
+        foreach Return partnerReturn in contents {
+            check processReturn(partnerReturn);
+        }
+    }
+
+    remote function onError(ftp:Error ftpError) returns error? {
+        log:printError("Error while polling the SFTP drop directory for return files", 'error = ftpError);
+    }
+}
+
+
+==== types.bal ====
+// Strongly typed representation of a single partner order row parsed from an
+// incoming CSV file.
+public type Order record {|
+    string orderId;
+    string customerId;
+    string productCode;
+    int quantity;
+    decimal unitPrice;
+    string orderDate;
+|};
+
+// Strongly typed representation of a single partner return row parsed from an
+// incoming CSV file.
+public type Return record {|
+    string returnId;
+    string orderId;
+    string productCode;
+    int quantity;
+    string reason;
+    string returnDate;
+|};
+
+
