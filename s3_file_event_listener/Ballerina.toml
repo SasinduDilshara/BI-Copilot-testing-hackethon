@@ -1,0 +1,3 @@
+[workspace]
+title = "s3-file-event-listener"
+packages = ["s3_file_event_listener"]
