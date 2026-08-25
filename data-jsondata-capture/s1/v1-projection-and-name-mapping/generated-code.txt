@@ -1,0 +1,121 @@
+==== Ballerina.toml ====
+[package]
+org = "anjanash"
+name = "test_project"
+version = "0.1.0"
+distribution = "2201.13.2"
+title = "test-project"
+
+[build-options]
+sticky = true
+
+
+==== agents.bal ====
+
+
+
+==== automation.bal ====
+import ballerina/log;
+
+public function main() returns error? {
+    do {
+
+    } on fail error e {
+        log:printError("Error: ", 'error = e);
+        return e;
+    }
+}
+
+
+==== config.bal ====
+
+
+
+==== connections.bal ====
+
+
+
+==== data_mappings.bal ====
+
+
+
+==== functions.bal ====
+
+
+
+==== main.bal ====
+import ballerina/data.jsondata;
+import ballerina/http;
+import ballerina/log;
+
+listener http:Listener orderFeedListener = new (8080);
+
+service /orders on orderFeedListener {
+
+    # Accepts a partner order feed payload in snake_case JSON, binds it into
+    # strongly typed camelCase records (ignoring unmodeled metadata fields),
+    # and acknowledges the mapped order.
+    #
+    # + payload - Raw JSON order feed payload sent by the partner
+    # + return - Acknowledgement on success, or a bad request error if mapping fails
+    resource function post feed(@http:Payload json payload) returns OrderFeedAck|http:BadRequest {
+        OrderFeed|jsondata:Error orderFeed = jsondata:parseAsType(payload);
+        if orderFeed is jsondata:Error {
+            log:printError("Failed to map order feed payload", 'error = orderFeed);
+            OrderFeedError errorBody = {message: "Invalid order feed payload: " + orderFeed.message()};
+            return <http:BadRequest>{body: errorBody};
+        }
+
+        log:printInfo("Order feed accepted", orderId = orderFeed.orderId, customerEmail = orderFeed.customerEmail,
+                lineItemCount = orderFeed.lineItems.length(), placedAt = orderFeed.placedAt);
+
+        OrderFeedAck ack = {orderId: orderFeed.orderId, status: "ACCEPTED"};
+        return ack;
+    }
+}
+
+
+==== types.bal ====
+import ballerina/data.jsondata;
+
+// Represents a single line item within an order.
+type LineItem record {|
+    @jsondata:Name {value: "sku"}
+    string sku;
+
+    @jsondata:Name {value: "quantity"}
+    int quantity;
+
+    @jsondata:Name {value: "unit_price"}
+    decimal unitPrice;
+|};
+
+// Represents the partner order feed payload. Only the fields we model are
+// bound - all other metadata fields present in the incoming JSON are ignored
+// since this is a closed record.
+type OrderFeed record {|
+    @jsondata:Name {value: "order_id"}
+    string orderId;
+
+    @jsondata:Name {value: "customer_email"}
+    string customerEmail;
+
+    @jsondata:Name {value: "line_items"}
+    LineItem[] lineItems;
+
+    @jsondata:Name {value: "placed_at"}
+    string placedAt;
+|};
+
+// Response returned once an order feed payload has been accepted and mapped.
+type OrderFeedAck record {|
+    string orderId;
+    string status;
+|};
+
+// Error payload returned when the incoming order feed cannot be parsed/mapped.
+type OrderFeedError record {|
+    string message;
+|};
+
+
