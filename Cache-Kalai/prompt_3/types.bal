@@ -14,4 +14,6 @@ public type RateLimitResponse record {|
     int currentCount;
     int limitPerMinute;
     int retryAfterSeconds;
+    boolean blocked = false;
+    int blockExpiresInSeconds?;
 |};

@@ -9,6 +9,16 @@ service /ratelimit on new http:Listener(servicePort) {
         ClientTier clientTier = rateLimitRequest.clientTier;
         string cacheKey = clientId + ":" + endpoint;
 
+        boolean isBlocked = blockedClientsCache.hasKey(clientId);
+        if isBlocked {
+            any|error cachedBlockExpiry = blockedClientsCache.get(clientId);
+            int blockExpiresInSeconds = BLOCK_DURATION_SECONDS;
+            if cachedBlockExpiry is int {
+                blockExpiresInSeconds = cachedBlockExpiry;
+            }
+            return buildBlockedResponse(blockExpiresInSeconds);
+        }
+
         int limitPerMinute = getLimitForTier(clientTier);
         int currentCount;
 
@@ -33,6 +43,14 @@ service /ratelimit on new http:Listener(servicePort) {
         }
 
         if currentCount > limitPerMinute {
+            boolean nowBlocked = recordViolationAndCheckBlock(clientId);
+            if nowBlocked {
+                error? invalidateError = rateLimitCache.invalidate(cacheKey);
+                if invalidateError is error {
+                    return buildTooManyRequestsResponse(currentCount, limitPerMinute);
+                }
+                return buildBlockedResponse(BLOCK_DURATION_SECONDS);
+            }
             return buildTooManyRequestsResponse(currentCount, limitPerMinute);
         }
 
@@ -53,6 +71,19 @@ function buildTooManyRequestsResponse(int currentCount, int limitPerMinute) retu
         currentCount: currentCount,
         limitPerMinute: limitPerMinute,
         retryAfterSeconds: RATE_LIMIT_WINDOW_SECONDS
+    };
+    http:TooManyRequests tooManyRequestsResponse = {body: rateLimitResponse};
+    return tooManyRequestsResponse;
+}
+
+function buildBlockedResponse(int blockExpiresInSeconds) returns http:TooManyRequests {
+    RateLimitResponse rateLimitResponse = {
+        allowed: false,
+        currentCount: 0,
+        limitPerMinute: 0,
+        retryAfterSeconds: blockExpiresInSeconds,
+        blocked: true,
+        blockExpiresInSeconds: blockExpiresInSeconds
     };
     http:TooManyRequests tooManyRequestsResponse = {body: rateLimitResponse};
     return tooManyRequestsResponse;
