@@ -2,8 +2,9 @@ import ballerina/log;
 import ballerinax/aws.sqs;
 
 // Provision the dead-letter queue and redrive policy once, when this module is initialized,
-// before the listener starts polling for messages.
+// before the listener starts polling for messages. Also registers the operational metrics.
 function init() returns error? {
+    initializeMetrics();
     check initializeQueueFailureHandling();
 }
 

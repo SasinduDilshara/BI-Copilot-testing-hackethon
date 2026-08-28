@@ -1,7 +1,7 @@
 import ballerinax/aws.sqs;
 
 sqs:ConnectionConfig sqsConnectionConfig = {
-    region: "us-east-1",
+    region: awsRegion,
     auth: {
         accessKeyId: awsAccessKeyId,
         secretAccessKey: awsSecretAccessKey
@@ -9,8 +9,8 @@ sqs:ConnectionConfig sqsConnectionConfig = {
 };
 
 sqs:PollingConfig sqsPollingConfig = {
-    pollInterval: 1.0,
-    waitTime: 20
+    pollInterval: sqsPollIntervalSeconds,
+    waitTime: sqsWaitTimeSeconds
 };
 
 // Management client used only to provision the dead-letter queue and queue attributes at startup.
