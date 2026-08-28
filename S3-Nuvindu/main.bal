@@ -8,16 +8,17 @@ import ballerinax/aws.sqs;
 service on sqsListener {
 
     remote function onMessage(sqs:Message message) returns error? {
+        string? messageId = message.messageId;
         string? messageBody = message.body;
         if messageBody is () {
-            log:printError("Received an SQS message with an empty body, skipping");
+            log:printError("Received an SQS message with an empty body, skipping", messageId = messageId);
             return;
         }
 
-        error? processResult = processS3EventMessage(messageBody);
+        error? processResult = processS3EventMessage(messageBody, messageId);
         if processResult is error {
             log:printError("Failed to process S3 event message, it will be retried by SQS",
-                    processResult);
+                    processResult, messageId = messageId);
             return processResult;
         }
     }

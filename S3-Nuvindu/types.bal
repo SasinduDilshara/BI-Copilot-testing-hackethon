@@ -6,6 +6,8 @@ public type S3Bucket record {
 // Represents the S3 object details within an S3 event record.
 public type S3Object record {
     string key;
+    // Unique per-operation token assigned by S3, used to build a stable de-duplication key.
+    string sequencer?;
 };
 
 // Represents the S3 entity (bucket and object) within an S3 event record.
@@ -32,4 +34,6 @@ public type S3EventLogEntry record {|
     string bucketName;
     string objectKey;
     string eventTime;
+    // Correlation identifier for the SQS message that carried this event, to trace failures and retries.
+    string? messageId;
 |};
