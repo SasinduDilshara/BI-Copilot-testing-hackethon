@@ -1,0 +1,9 @@
+[package]
+org = "induwara"
+name = "insurance_claims"
+version = "0.1.0"
+distribution = "2201.13.5"
+title = "insurance-claims"
+
+[build-options]
+sticky = true

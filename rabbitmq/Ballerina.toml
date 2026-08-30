@@ -1,0 +1,3 @@
+[workspace]
+title = "RabbitMQ"
+packages = ["insurance_claims", "fulfilment_saga", "notifications"]
