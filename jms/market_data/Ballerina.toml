@@ -1,0 +1,9 @@
+[package]
+org = "induwara"
+name = "market_data"
+version = "0.1.0"
+distribution = "2201.13.5"
+title = "market-data"
+
+[build-options]
+sticky = true

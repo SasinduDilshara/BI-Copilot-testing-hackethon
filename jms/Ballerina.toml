@@ -1,0 +1,3 @@
+[workspace]
+title = "jms"
+packages = ["banking", "market_data"]
