@@ -1,0 +1,9 @@
+[package]
+org = "induwara"
+name = "payment_settlement"
+version = "0.1.0"
+distribution = "2201.13.5"
+title = "payment-settlement"
+
+[build-options]
+sticky = true

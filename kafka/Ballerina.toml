@@ -1,0 +1,3 @@
+[workspace]
+title = "kafka"
+packages = ["retail_order", "payment_settlement", "iot_telemetry"]
