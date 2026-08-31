@@ -52,10 +52,12 @@ public type ErrorMoveResponse record {|
     string movedAt;
 |};
 
-// Response describing the contents of a report workspace.
-public type WorkspaceContents record {|
-    string reportId;
-    string[] dataFiles;
-    string[] outputFiles;
-    int totalWorkspaceSizeBytes;
+// Statistics computed for the files contained directly within a folder.
+public type FolderStats record {|
+    int totalFiles;
+    int totalSizeBytes;
+    string largestFileName;
+    int largestFileSizeBytes;
+    string oldestFileName;
+    string newestFileName;
 |};
