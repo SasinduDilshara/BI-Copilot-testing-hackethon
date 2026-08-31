@@ -1,14 +1,22 @@
 import ballerina/http;
+import ballerina/jwt;
 import ballerina/lang.runtime;
 import ballerina/time;
 import ballerina/websocket;
 
-configurable int servicePort = 9090;
-
 // Interval, in seconds, between simulated order status push updates.
 final decimal updateIntervalSeconds = 5;
 
-listener websocket:Listener orderTrackingListener = new (servicePort);
+listener http:Listener secureHttpListener = new (servicePort, {
+    secureSocket: {
+        key: {
+            certFile: tlsCertFile,
+            keyFile: tlsKeyFile
+        }
+    }
+});
+
+listener websocket:Listener orderTrackingListener = new (secureHttpListener);
 
 service /orders/track on orderTrackingListener {
 
@@ -19,8 +27,50 @@ service /orders/track on orderTrackingListener {
         if !isKnownOrder(orderId) {
             return error websocket:UpgradeError(string `Unknown order ID: ${orderId}`);
         }
+        string|websocket:UpgradeError authResult = authorizeOrderAccess(request, orderId);
+        if authResult is websocket:UpgradeError {
+            return authResult;
+        }
         return new OrderTrackingService(orderId);
     }
+}
+
+// Validates the customer's JWT from the Authorization header and confirms the token's
+// order claim matches the order being requested, so a customer can only track their own order.
+isolated function authorizeOrderAccess(http:Request request, string orderId) returns string|websocket:UpgradeError {
+    string authHeader;
+    do {
+        authHeader = check request.getHeader("Authorization");
+    } on fail {
+        return error websocket:UpgradeError("Missing required Authorization header");
+    }
+    if !authHeader.startsWith("Bearer ") {
+        return error websocket:UpgradeError("Authorization header must be a Bearer token");
+    }
+    string bearerToken = authHeader.substring(7);
+
+    jwt:ValidatorConfig validatorConfig = {
+        issuer: jwtIssuer,
+        audience: jwtAudience,
+        signatureConfig: {
+            certFile: jwtSigningCertFile
+        }
+    };
+    jwt:Payload|jwt:Error validationResult = jwt:validate(bearerToken, validatorConfig);
+    if validationResult is jwt:Error {
+        return error websocket:UpgradeError("Invalid or expired JWT", validationResult);
+    }
+
+    // jwt:Payload is an open record, so application-specific claims are accessible via map access.
+    map<json> tokenClaims = <map<json>>validationResult;
+    json claimedOrderIdValue = tokenClaims[orderIdClaimName] ?: ();
+    if claimedOrderIdValue !is string {
+        return error websocket:UpgradeError(string `JWT is missing the required '${orderIdClaimName}' claim`);
+    }
+    if claimedOrderIdValue != orderId {
+        return error websocket:UpgradeError("This order does not belong to the authenticated customer");
+    }
+    return claimedOrderIdValue;
 }
 
 service /orders/dashboard on orderTrackingListener {
