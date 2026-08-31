@@ -26,3 +26,28 @@ public type FileNotFound record {|
     *http:NotFound;
     ErrorDetail body;
 |};
+
+// Request payload for the document archive endpoint.
+public type ArchiveRequest record {|
+    string processingFilePath;
+    string archiveDateFolder;
+|};
+
+// Successful response after a document has been archived.
+public type ArchiveResponse record {|
+    string originalPath;
+    string archivedPath;
+    string archivedAt;
+|};
+
+// Request payload for the document error-move endpoint.
+public type ErrorMoveRequest record {|
+    string processingFilePath;
+|};
+
+// Successful response after a document has been moved to the error folder.
+public type ErrorMoveResponse record {|
+    string fileName;
+    string errorPath;
+    string movedAt;
+|};

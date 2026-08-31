@@ -83,4 +83,143 @@ service /documents on new http:Listener(9093) {
             status: "processing"
         };
     }
+
+    resource function post archive(ArchiveRequest archiveRequest) returns ArchiveResponse|FileNotFound|http:InternalServerError {
+        string processingFilePath = archiveRequest.processingFilePath;
+
+        boolean|file:Error existsResult = file:test(processingFilePath, file:EXISTS);
+        if existsResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: existsResult.message(), path: processingFilePath}
+            };
+        }
+        boolean fileExists = existsResult;
+        if !fileExists {
+            return <FileNotFound>{
+                body: {message: "Processing file does not exist", path: processingFilePath}
+            };
+        }
+
+        int? lastSeparatorIndex = processingFilePath.lastIndexOf(file:pathSeparator);
+        string parentDir = lastSeparatorIndex is int ? processingFilePath.substring(0, lastSeparatorIndex) : ".";
+
+        string|file:Error archiveDirResult = file:joinPath(parentDir, "archive", archiveRequest.archiveDateFolder);
+        if archiveDirResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: archiveDirResult.message(), path: processingFilePath}
+            };
+        }
+        string archiveDir = archiveDirResult;
+
+        boolean|file:Error archiveDirExistsResult = file:test(archiveDir, file:EXISTS);
+        if archiveDirExistsResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: archiveDirExistsResult.message(), path: archiveDir}
+            };
+        }
+        boolean archiveDirExists = archiveDirExistsResult;
+        if !archiveDirExists {
+            file:Error? createDirResult = file:createDir(archiveDir, file:RECURSIVE);
+            if createDirResult is file:Error {
+                return <http:InternalServerError>{
+                    body: {message: createDirResult.message(), path: archiveDir}
+                };
+            }
+        }
+
+        string|file:Error baseNameResult = file:basename(processingFilePath);
+        if baseNameResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: baseNameResult.message(), path: processingFilePath}
+            };
+        }
+        string fileName = baseNameResult;
+
+        string|file:Error archivedPathResult = file:joinPath(archiveDir, fileName);
+        if archivedPathResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: archivedPathResult.message(), path: archiveDir}
+            };
+        }
+        string archivedPath = archivedPathResult;
+
+        file:Error? copyResult = file:copy(processingFilePath, archivedPath, file:REPLACE_EXISTING);
+        if copyResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: copyResult.message(), path: processingFilePath}
+            };
+        }
+
+        file:Error? removeResult = file:remove(processingFilePath);
+        if removeResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: removeResult.message(), path: processingFilePath}
+            };
+        }
+
+        return {
+            originalPath: processingFilePath,
+            archivedPath,
+            archivedAt: time:utcToString(time:utcNow())
+        };
+    }
+
+    resource function post 'error(ErrorMoveRequest errorMoveRequest) returns ErrorMoveResponse|FileNotFound|http:InternalServerError {
+        string processingFilePath = errorMoveRequest.processingFilePath;
+
+        boolean|file:Error existsResult = file:test(processingFilePath, file:EXISTS);
+        if existsResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: existsResult.message(), path: processingFilePath}
+            };
+        }
+        boolean fileExists = existsResult;
+        if !fileExists {
+            return <FileNotFound>{
+                body: {message: "Processing file does not exist", path: processingFilePath}
+            };
+        }
+
+        int? lastSeparatorIndex = processingFilePath.lastIndexOf(file:pathSeparator);
+        string parentDir = lastSeparatorIndex is int ? processingFilePath.substring(0, lastSeparatorIndex) : ".";
+        string errorDir = parentDir + file:pathSeparator + "error";
+
+        boolean|file:Error errorDirExistsResult = file:test(errorDir, file:EXISTS);
+        if errorDirExistsResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: errorDirExistsResult.message(), path: errorDir}
+            };
+        }
+        boolean errorDirExists = errorDirExistsResult;
+        if !errorDirExists {
+            file:Error? createDirResult = file:createDir(errorDir, file:RECURSIVE);
+            if createDirResult is file:Error {
+                return <http:InternalServerError>{
+                    body: {message: createDirResult.message(), path: errorDir}
+                };
+            }
+        }
+
+        string|file:Error baseNameResult = file:basename(processingFilePath);
+        if baseNameResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: baseNameResult.message(), path: processingFilePath}
+            };
+        }
+        string fileName = baseNameResult;
+
+        string errorPath = errorDir + file:pathSeparator + fileName;
+        file:Error? renameResult = file:rename(processingFilePath, errorPath);
+        if renameResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: renameResult.message(), path: processingFilePath}
+            };
+        }
+
+        return {
+            fileName,
+            errorPath,
+            movedAt: time:utcToString(time:utcNow())
+        };
+    }
 }
