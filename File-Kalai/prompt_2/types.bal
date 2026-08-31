@@ -12,3 +12,17 @@ public type WorkspaceResponse record {|
     string outputPath;
     string createdAt;
 |};
+
+// Request to create a named data file inside the workspace's data/ subdirectory.
+public type DataFileRequest record {|
+    string fileName;
+    string content;
+|};
+
+// Response containing the details of the created data file.
+public type DataFileResponse record {|
+    string reportId;
+    string fileName;
+    string filePath;
+    int fileSizeBytes;
+|};
