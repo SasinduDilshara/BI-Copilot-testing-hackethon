@@ -4,8 +4,13 @@ const string EXPENSE_SHEET_NAME = "Expense Report";
 const int REPORTING_PERIOD_ROW_INDEX = 1;
 const int REPORTING_PERIOD_COLUMN_INDEX = 1;
 const int HEADER_ROW_INDEX = 2;
+const int DATA_START_ROW_INDEX = 3;
+const int EMPLOYEE_ID_COLUMN_INDEX = 0;
+const int AMOUNT_USD_COLUMN_INDEX = 5;
+const string TOTAL_ROW_MARKER = "TOTAL";
 const decimal MIN_AMOUNT_USD = 0d;
 const decimal MAX_AMOUNT_USD = 10000d;
+const decimal TOTAL_MATCH_TOLERANCE = 0.01d;
 
 # Validates a single bound expense entry: amount range and category membership.
 # Binding (headers, types, required fields) is already enforced natively by `Sheet.getRows`;
@@ -50,11 +55,59 @@ function toExpenseValidationError(xlsx:Error sourceError) returns ExpenseValidat
             reason = sourceError.message());
 }
 
+# Result of scanning the sheet for a trailing TOTAL row.
+type DataRowScanResult record {|
+    int dataRowCount;
+    boolean hasTotalRow;
+|};
+
+# Determines how many data rows should be bound as expense entries, excluding a trailing
+# TOTAL row (where the Employee ID cell reads 'TOTAL', case-insensitively) if one is present.
+#
+# + sheet - The sheet being read
+# + return - The number of data rows to bind, and whether a trailing TOTAL row was found, or an xlsx error
+function resolveDataRowCount(xlsx:Sheet sheet) returns DataRowScanResult|xlsx:Error {
+    int totalRowCount = check sheet.getRowCount();
+    int availableDataRows = totalRowCount - DATA_START_ROW_INDEX;
+    if availableDataRows <= 0 {
+        return {dataRowCount: 0, hasTotalRow: false};
+    }
+
+    int lastRowIndex = totalRowCount - 1;
+    string|xlsx:Error lastRowFirstCell = sheet.getCell(lastRowIndex, EMPLOYEE_ID_COLUMN_INDEX);
+    if lastRowFirstCell is xlsx:Error {
+        return {dataRowCount: availableDataRows, hasTotalRow: false};
+    }
+    boolean hasTotalRow = lastRowFirstCell.trim().toUpperAscii() == TOTAL_ROW_MARKER;
+    int dataRowCount = hasTotalRow ? availableDataRows - 1 : availableDataRows;
+    return {dataRowCount, hasTotalRow};
+}
+
+# Reads the sheet's own TOTAL row amount cell as a computed decimal value (formula cells resolve
+# to their cached computed value, not the formula text).
+#
+# + sheet - The sheet being read
+# + totalRowIndex - 0-based row index of the TOTAL row
+# + return - The computed total amount, or a typed validation error if the cell cannot be read
+function readSheetTotalAmount(xlsx:Sheet sheet, int totalRowIndex) returns decimal|ExpenseValidationError {
+    decimal|xlsx:Error sheetTotalResult = sheet.getCell(totalRowIndex, AMOUNT_USD_COLUMN_INDEX);
+    if sheetTotalResult is xlsx:Error {
+        return error ExpenseValidationError("Unable to read TOTAL row amount",
+                rowNumber = totalRowIndex + 1, column = "Amount (USD)",
+                reason = string `The TOTAL row's Amount (USD) cell could not be read as a number: ${sheetTotalResult.message()}`);
+    }
+    return sheetTotalResult;
+}
+
 # Processes an uploaded XLSX workbook (as raw bytes) entirely in memory and produces a validated summary.
 #
+# A trailing TOTAL row (Employee ID cell reading 'TOTAL') is detected and excluded from the parsed
+# entries; when present, its Amount (USD) formula cell is read as its computed value and checked
+# against the sum of the parsed amounts.
+#
 # + workbookBytes - The raw bytes of the uploaded .xlsx workbook
-# + return - The upload summary on success, or a typed validation error identifying the failing row/column
-function processExpenseWorkbook(byte[] workbookBytes) returns ExpenseUploadSummary|ExpenseValidationError {
+# + return - The upload summary on success, a typed validation error, or a typed TOTAL mismatch error
+function processExpenseWorkbook(byte[] workbookBytes) returns ExpenseUploadSummary|ExpenseValidationError|ExpenseTotalMismatchError {
     xlsx:Workbook|xlsx:Error workbook = xlsx:fromBytes(workbookBytes);
     if workbook is xlsx:Error {
         return error ExpenseValidationError("Unable to read workbook",
@@ -78,18 +131,41 @@ function processExpenseWorkbook(byte[] workbookBytes) returns ExpenseUploadSumma
     }
     string reportingPeriod = reportingPeriodResult;
 
-    ExpenseEntry[]|xlsx:Error boundEntriesResult = sheet.getRows({headerRowIndex: HEADER_ROW_INDEX});
+    DataRowScanResult|xlsx:Error dataRowScanResult = resolveDataRowCount(sheet);
+    if dataRowScanResult is xlsx:Error {
+        error? closeResult = workbook.close();
+        return toExpenseValidationError(dataRowScanResult);
+    }
+    int dataRowCount = dataRowScanResult.dataRowCount;
+    boolean hasTotalRow = dataRowScanResult.hasTotalRow;
+
+    ExpenseEntry[]|xlsx:Error boundEntriesResult = sheet.getRows({
+        headerRowIndex: HEADER_ROW_INDEX,
+        caseInsensitiveHeaders: true,
+        rowCount: dataRowCount
+    });
     if boundEntriesResult is xlsx:Error {
         error? closeResult = workbook.close();
         return toExpenseValidationError(boundEntriesResult);
     }
     ExpenseEntry[] boundEntries = boundEntriesResult;
 
+    decimal|ExpenseValidationError|() sheetTotalResult = ();
+    if hasTotalRow {
+        int totalRowIndex = DATA_START_ROW_INDEX + dataRowCount;
+        sheetTotalResult = readSheetTotalAmount(sheet, totalRowIndex);
+    }
+
     error? closeResult = workbook.close();
+
+    if sheetTotalResult is ExpenseValidationError {
+        return sheetTotalResult;
+    }
+    decimal? sheetTotalAmountUsd = sheetTotalResult;
 
     ExpenseEntry[] expenseEntries = [];
     foreach int entryIndex in 0 ..< boundEntries.length() {
-        int rowNumber = HEADER_ROW_INDEX + 2 + entryIndex;
+        int rowNumber = DATA_START_ROW_INDEX + 1 + entryIndex;
         ExpenseEntry|ExpenseValidationError validatedEntry = validateExpenseEntry(boundEntries[entryIndex], rowNumber);
         if validatedEntry is ExpenseValidationError {
             return validatedEntry;
@@ -103,6 +179,16 @@ function processExpenseWorkbook(byte[] workbookBytes) returns ExpenseUploadSumma
         totalAmountUsd += expenseEntry.amountUsd;
         decimal currentDepartmentTotal = perDepartment.hasKey(expenseEntry.department) ? perDepartment.get(expenseEntry.department) : 0d;
         perDepartment[expenseEntry.department] = currentDepartmentTotal + expenseEntry.amountUsd;
+    }
+
+    if sheetTotalAmountUsd is decimal {
+        decimal totalDifference = sheetTotalAmountUsd > totalAmountUsd
+            ? sheetTotalAmountUsd - totalAmountUsd
+            : totalAmountUsd - sheetTotalAmountUsd;
+        if totalDifference > TOTAL_MATCH_TOLERANCE {
+            return error ExpenseTotalMismatchError("TOTAL_MISMATCH",
+                    sheetTotalAmountUsd = sheetTotalAmountUsd, computedTotalAmountUsd = totalAmountUsd);
+        }
     }
 
     return {

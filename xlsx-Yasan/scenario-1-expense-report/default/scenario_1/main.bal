@@ -6,7 +6,7 @@ service /expenses on new http:Listener(8085) {
     #
     # + request - The inbound HTTP request carrying the raw workbook bytes
     # + return - The upload summary on success, or a typed 400 error identifying the failing row/column/reason
-    resource function post upload(http:Request request) returns ExpenseUploadSummary|http:BadRequest|http:InternalServerError {
+    resource function post upload(http:Request request) returns ExpenseUploadSummary|http:BadRequest|http:UnprocessableEntity|http:InternalServerError {
         byte[]|http:ClientError workbookBytes = request.getBinaryPayload();
         if workbookBytes is http:ClientError {
             ExpenseUploadErrorPayload errorPayload = {
@@ -18,7 +18,17 @@ service /expenses on new http:Listener(8085) {
             return <http:BadRequest>{body: errorPayload};
         }
 
-        ExpenseUploadSummary|ExpenseValidationError result = processExpenseWorkbook(workbookBytes);
+        ExpenseUploadSummary|ExpenseValidationError|ExpenseTotalMismatchError result = processExpenseWorkbook(workbookBytes);
+        if result is ExpenseTotalMismatchError {
+            ExpenseTotalMismatchDetails mismatchDetails = result.detail();
+            ExpenseTotalMismatchPayload mismatchPayload = {
+                message: "Upload rejected due to a TOTAL mismatch",
+                reason: result.message(),
+                sheetTotalAmountUsd: mismatchDetails.sheetTotalAmountUsd,
+                computedTotalAmountUsd: mismatchDetails.computedTotalAmountUsd
+            };
+            return <http:UnprocessableEntity>{body: mismatchPayload};
+        }
         if result is ExpenseValidationError {
             ExpenseValidationErrorDetails errorDetails = result.detail();
             ExpenseUploadErrorPayload errorPayload = {

@@ -54,10 +54,27 @@ public type ExpenseValidationErrorDetails record {
 # Typed error returned when a row fails binding or validation.
 public type ExpenseValidationError error<ExpenseValidationErrorDetails>;
 
+# Details describing a mismatch between the sheet's own TOTAL row and the sum of parsed amounts.
+public type ExpenseTotalMismatchDetails record {
+    decimal sheetTotalAmountUsd;
+    decimal computedTotalAmountUsd;
+};
+
+# Typed error returned when the sheet's TOTAL row does not match the sum of the parsed amounts.
+public type ExpenseTotalMismatchError error<ExpenseTotalMismatchDetails>;
+
 # Typed HTTP 400 response body returned when the upload is rejected.
 public type ExpenseUploadErrorPayload record {|
     string message;
     int rowNumber;
     string column;
     string reason;
+|};
+
+# Typed HTTP 422 response body returned when the sheet's own TOTAL does not match the parsed sum.
+public type ExpenseTotalMismatchPayload record {|
+    string message;
+    string reason;
+    decimal sheetTotalAmountUsd;
+    decimal computedTotalAmountUsd;
 |};
