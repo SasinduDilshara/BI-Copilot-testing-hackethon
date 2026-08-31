@@ -6,7 +6,12 @@ configurable string ledgerPath = "../fixtures/internal-ledger.xlsx";
 configurable string reportPath = "reconciliation-report.xlsx";
 
 public function main() returns error? {
-    StatementRow[] statementRows = check xlsx:parseSheet(statementPath, "Statement");
+    // The statement sheet starts with a free-text bank/account banner row before the
+    // real header row, so the header and data start rows must be shifted down by one.
+    StatementRow[] statementRows = check xlsx:parseSheet(statementPath, "Statement", {
+        headerRowIndex: 1,
+        dataStartRowIndex: 2
+    });
 
     xlsx:Workbook ledgerWorkbook = check xlsx:fromFile(ledgerPath);
     xlsx:Table ledgerTable = check ledgerWorkbook.getTable("LedgerEntries");
@@ -14,7 +19,10 @@ public function main() returns error? {
     check ledgerWorkbook.close();
 
     Mismatch[] mismatches = reconcile(statementRows, ledgerRows);
-    check xlsx:writeSheet(mismatches, reportPath, "Mismatches");
+    // Each nightly run reports mismatches for that run only, so the sheet must be replaced
+    // rather than appended to - appending would keep accumulating stale findings from
+    // every previous night on top of the current ones.
+    check xlsx:writeSheet(mismatches, reportPath, "Mismatches", sheetWriteMode = xlsx:REPLACE);
 
     io:println(string `Reconciled ${statementRows.length()} statement rows against ` +
             string `${ledgerRows.length()} ledger entries: ${mismatches.length()} mismatch(es).`);
