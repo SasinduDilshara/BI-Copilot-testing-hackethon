@@ -1,3 +1,37 @@
+import ballerina/websocket;
+
+// In-memory registry of connected dashboard callers, keyed by connection ID.
+// Dashboard clients subscribe to every order update broadcast, regardless of order ID.
+isolated map<websocket:Caller> dashboardSubscribers = {};
+
+// Registers a dashboard caller so it receives every subsequent order update broadcast.
+isolated function addDashboardSubscriber(websocket:Caller caller) {
+    lock {
+        dashboardSubscribers[caller.getConnectionId()] = caller;
+    }
+}
+
+// Removes a dashboard caller from the broadcast registry, e.g. on disconnect.
+isolated function removeDashboardSubscriber(websocket:Caller caller) {
+    lock {
+        _ = dashboardSubscribers.removeIfHasKey(caller.getConnectionId());
+    }
+}
+
+// Broadcasts a single order update to every currently connected dashboard caller.
+// Any subscriber that fails to receive the update (e.g. a stale connection) is dropped.
+isolated function broadcastToDashboards(readonly & OrderUpdate orderUpdate) {
+    lock {
+        foreach string connectionId in dashboardSubscribers.keys() {
+            websocket:Caller subscriber = dashboardSubscribers.get(connectionId);
+            websocket:Error? writeResult = subscriber->writeMessage(orderUpdate);
+            if writeResult is websocket:Error {
+                _ = dashboardSubscribers.removeIfHasKey(connectionId);
+            }
+        }
+    }
+}
+
 // In-memory store of known orders that can be tracked.
 // Populated with sample data to simulate an existing orders backend.
 isolated map<Order> ordersById = {

@@ -23,6 +23,13 @@ service /orders/track on orderTrackingListener {
     }
 }
 
+service /orders/dashboard on orderTrackingListener {
+
+    resource function get .(http:Request request) returns websocket:Service|websocket:UpgradeError {
+        return new DashboardStreamingService();
+    }
+}
+
 service class OrderTrackingService {
     *websocket:Service;
 
@@ -36,7 +43,7 @@ service class OrderTrackingService {
     remote function onOpen(websocket:Caller caller) returns error? {
         Order? currentOrder = getOrder(self.orderId);
         if currentOrder is Order {
-            OrderUpdate initialUpdate = buildOrderUpdate(currentOrder);
+            readonly & OrderUpdate initialUpdate = buildOrderUpdate(currentOrder);
             check caller->writeMessage(initialUpdate);
         }
         worker StatusPusher {
@@ -47,11 +54,12 @@ service class OrderTrackingService {
                 }
                 Order? updatedOrder = advanceOrder(self.orderId);
                 if updatedOrder is Order {
-                    OrderUpdate orderUpdate = buildOrderUpdate(updatedOrder);
+                    readonly & OrderUpdate orderUpdate = buildOrderUpdate(updatedOrder);
                     websocket:Error? writeResult = caller->writeMessage(orderUpdate);
                     if writeResult is websocket:Error {
                         self.stop();
                     }
+                    broadcastToDashboards(orderUpdate);
                     if updatedOrder.status == "DELIVERED" {
                         self.stop();
                     }
@@ -83,11 +91,35 @@ service class OrderTrackingService {
     }
 }
 
+// Streams order updates for every active order to a single dashboard client.
+// Reuses the same update-generation logic in OrderTrackingService; this class only
+// manages the subscription lifecycle for the dashboard connection.
+service class DashboardStreamingService {
+    *websocket:Service;
+
+    remote function onOpen(websocket:Caller caller) returns error? {
+        addDashboardSubscriber(caller);
+    }
+
+    remote function onClose(websocket:Caller caller, int statusCode, string reason) {
+        removeDashboardSubscriber(caller);
+    }
+
+    remote function onError(websocket:Caller caller, error err) {
+        removeDashboardSubscriber(caller);
+    }
+}
+
 // Builds the wire-format update message from the current order snapshot.
-isolated function buildOrderUpdate(Order 'order) returns OrderUpdate => {
-    orderId: 'order.orderId,
-    status: 'order.status,
-    courierLocation: 'order.courierLocation,
-    estimatedArrival: 'order.estimatedArrival,
-    updatedAt: time:utcToString(time:utcNow())
-};
+// This is the single source of update generation, shared by both the per-order
+// tracking stream and the all-orders dashboard broadcast.
+isolated function buildOrderUpdate(Order 'order) returns readonly & OrderUpdate {
+    OrderUpdate orderUpdate = {
+        orderId: 'order.orderId,
+        status: 'order.status,
+        courierLocation: 'order.courierLocation,
+        estimatedArrival: 'order.estimatedArrival,
+        updatedAt: time:utcToString(time:utcNow())
+    };
+    return orderUpdate.cloneReadOnly();
+}

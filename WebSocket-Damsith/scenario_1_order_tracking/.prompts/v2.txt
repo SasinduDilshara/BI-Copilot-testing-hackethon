@@ -1,0 +1,3 @@
+WebSocket:prompt-1:v2
+
+Our internal dispatch dashboard needs to watch every active order at once, not one at a time. Add a second path for dashboard clients that streams updates for all orders, without duplicating the update-generation logic we already have.
