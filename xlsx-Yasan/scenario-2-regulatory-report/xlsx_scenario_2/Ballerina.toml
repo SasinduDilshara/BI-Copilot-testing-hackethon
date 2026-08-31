@@ -1,0 +1,3 @@
+[workspace]
+title = "xlsx-scenario-2"
+packages = ["scenario_2"]
