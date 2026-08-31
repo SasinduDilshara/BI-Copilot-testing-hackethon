@@ -2,7 +2,11 @@ import ballerina/file;
 import ballerina/http;
 import ballerina/time;
 
-service /documents on new http:Listener(9093) {
+isolated map<string> reportWorkspaces = {};
+
+listener http:Listener documentsListener = new (9093);
+
+service /documents on documentsListener {
 
     resource function post process(ProcessRequest processRequest) returns ProcessResponse|FileNotFound|http:InternalServerError {
         string sourceFilePath = processRequest.sourceFilePath;
@@ -222,4 +226,125 @@ service /documents on new http:Listener(9093) {
             movedAt: time:utcToString(time:utcNow())
         };
     }
+}
+
+service /reports on documentsListener {
+
+    resource function delete [string reportId]/workspace() returns http:NoContent|FileNotFound|http:InternalServerError {
+        string? workspacePath = ();
+        lock {
+            workspacePath = reportWorkspaces[reportId];
+        }
+        if workspacePath is () {
+            return <FileNotFound>{
+                body: {message: "Workspace does not exist for the given report", path: reportId}
+            };
+        }
+        string resolvedWorkspacePath = workspacePath;
+
+        boolean|file:Error existsResult = file:test(resolvedWorkspacePath, file:EXISTS);
+        if existsResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: existsResult.message(), path: resolvedWorkspacePath}
+            };
+        }
+        boolean workspaceExists = existsResult;
+        if !workspaceExists {
+            return <FileNotFound>{
+                body: {message: "Workspace does not exist", path: resolvedWorkspacePath}
+            };
+        }
+
+        file:Error? removeResult = file:remove(resolvedWorkspacePath, file:RECURSIVE);
+        if removeResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: removeResult.message(), path: resolvedWorkspacePath}
+            };
+        }
+
+        lock {
+            _ = reportWorkspaces.removeIfHasKey(reportId);
+        }
+
+        return http:NO_CONTENT;
+    }
+
+    resource function get [string reportId]/workspace/contents() returns WorkspaceContents|FileNotFound|http:InternalServerError {
+        string? workspacePath = ();
+        lock {
+            workspacePath = reportWorkspaces[reportId];
+        }
+        if workspacePath is () {
+            return <FileNotFound>{
+                body: {message: "Workspace does not exist for the given report", path: reportId}
+            };
+        }
+        string resolvedWorkspacePath = workspacePath;
+
+        string|file:Error dataDirResult = file:joinPath(resolvedWorkspacePath, "data");
+        if dataDirResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: dataDirResult.message(), path: resolvedWorkspacePath}
+            };
+        }
+        string dataDir = dataDirResult;
+
+        string|file:Error outputDirResult = file:joinPath(resolvedWorkspacePath, "output");
+        if outputDirResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: outputDirResult.message(), path: resolvedWorkspacePath}
+            };
+        }
+        string outputDir = outputDirResult;
+
+        [string[], int]|file:Error dataResult = collectFilesRecursively(dataDir);
+        if dataResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: dataResult.message(), path: dataDir}
+            };
+        }
+        [string[], int] [dataFileNames, dataSizeBytes] = dataResult;
+
+        [string[], int]|file:Error outputResult = collectFilesRecursively(outputDir);
+        if outputResult is file:Error {
+            return <http:InternalServerError>{
+                body: {message: outputResult.message(), path: outputDir}
+            };
+        }
+        [string[], int] [outputFileNames, outputSizeBytes] = outputResult;
+
+        return {
+            reportId,
+            dataFiles: dataFileNames,
+            outputFiles: outputFileNames,
+            totalWorkspaceSizeBytes: dataSizeBytes + outputSizeBytes
+        };
+    }
+}
+
+function collectFilesRecursively(string directoryPath) returns [string[], int]|file:Error {
+    boolean dirExists = check file:test(directoryPath, file:EXISTS);
+    if !dirExists {
+        return [[], 0];
+    }
+
+    string[] fileNames = [];
+    int totalSizeBytes = 0;
+
+    file:MetaData[] entries = check file:readDir(directoryPath);
+    foreach file:MetaData entry in entries {
+        if entry.dir {
+            [string[], int] subResult = check collectFilesRecursively(entry.absPath);
+            fileNames.push(...subResult[0]);
+            totalSizeBytes += subResult[1];
+        } else {
+            string|file:Error entryFileName = file:basename(entry.absPath);
+            if entryFileName is string {
+                fileNames.push(entryFileName);
+            }
+            totalSizeBytes += entry.size;
+        }
+    }
+
+    return [fileNames, totalSizeBytes];
 }

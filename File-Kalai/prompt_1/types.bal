@@ -51,3 +51,11 @@ public type ErrorMoveResponse record {|
     string errorPath;
     string movedAt;
 |};
+
+// Response describing the contents of a report workspace.
+public type WorkspaceContents record {|
+    string reportId;
+    string[] dataFiles;
+    string[] outputFiles;
+    int totalWorkspaceSizeBytes;
+|};
