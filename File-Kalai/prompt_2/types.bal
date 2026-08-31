@@ -26,3 +26,11 @@ public type DataFileResponse record {|
     string filePath;
     int fileSizeBytes;
 |};
+
+// Response containing the contents and total size of a report's workspace.
+public type WorkspaceContents record {|
+    string reportId;
+    string[] dataFiles;
+    string[] outputFiles;
+    int totalWorkspaceSizeBytes;
+|};

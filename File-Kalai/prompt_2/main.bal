@@ -130,4 +130,84 @@ service /reports on workspaceListener {
             fileSizeBytes: fileMetaData.size
         };
     }
+
+    resource function delete [string reportId]/workspace()
+            returns http:NoContent|http:NotFound|http:InternalServerError {
+
+        string? workspacePath;
+        lock {
+            workspacePath = reportWorkspaces[reportId];
+        }
+
+        if workspacePath is () {
+            return <http:NotFound>{
+                body: string `Workspace not found for reportId: ${reportId}`
+            };
+        }
+
+        file:Error? removeResult = file:remove(workspacePath, file:RECURSIVE);
+        if removeResult is file:Error {
+            return <http:InternalServerError>{
+                body: string `Failed to remove workspace directory: ${removeResult.message()}`
+            };
+        }
+
+        lock {
+            _ = reportWorkspaces.removeIfHasKey(reportId);
+        }
+
+        return http:NO_CONTENT;
+    }
+
+    resource function get [string reportId]/workspace/contents()
+            returns WorkspaceContents|http:NotFound|http:InternalServerError {
+
+        string? workspacePath;
+        lock {
+            workspacePath = reportWorkspaces[reportId];
+        }
+
+        if workspacePath is () {
+            return <http:NotFound>{
+                body: string `Workspace not found for reportId: ${reportId}`
+            };
+        }
+
+        string|file:Error dataPath = file:joinPath(workspacePath, "data");
+        if dataPath is file:Error {
+            return <http:InternalServerError>{
+                body: string `Failed to construct data path: ${dataPath.message()}`
+            };
+        }
+
+        string|file:Error outputPath = file:joinPath(workspacePath, "output");
+        if outputPath is file:Error {
+            return <http:InternalServerError>{
+                body: string `Failed to construct output path: ${outputPath.message()}`
+            };
+        }
+
+        string[] dataFiles = [];
+        int|file:Error dataSizeBytes = collectDirContents(dataPath, dataFiles);
+        if dataSizeBytes is file:Error {
+            return <http:InternalServerError>{
+                body: string `Failed to read data directory: ${dataSizeBytes.message()}`
+            };
+        }
+
+        string[] outputFiles = [];
+        int|file:Error outputSizeBytes = collectDirContents(outputPath, outputFiles);
+        if outputSizeBytes is file:Error {
+            return <http:InternalServerError>{
+                body: string `Failed to read output directory: ${outputSizeBytes.message()}`
+            };
+        }
+
+        return {
+            reportId: reportId,
+            dataFiles: dataFiles,
+            outputFiles: outputFiles,
+            totalWorkspaceSizeBytes: dataSizeBytes + outputSizeBytes
+        };
+    }
 }
