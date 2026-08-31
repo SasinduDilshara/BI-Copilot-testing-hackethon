@@ -1,0 +1,3 @@
+[workspace]
+title = "file"
+packages = ["prompt_1"]
