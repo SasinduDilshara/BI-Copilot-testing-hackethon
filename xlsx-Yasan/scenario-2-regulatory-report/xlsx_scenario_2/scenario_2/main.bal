@@ -34,12 +34,13 @@ service /reports on new http:Listener(servicePort) {
         };
     }
 
-    # Opens a generated workbook read-only and reports each region table's headers, row count,
-    # data range, whether it has a totals row, and whether stray rows exist below the table.
+    # Opens a generated workbook read-only and reports the consolidated alerts table's headers,
+    # row count, data range, whether it has a totals row, and whether stray rows exist below
+    # the table.
     #
     # + workbookPath - the file path of the workbook to verify
     # + return - the verification details, a bad request if the path is missing, or an
-    # internal server error if the workbook or a region table cannot be read
+    # internal server error if the workbook or the alerts table cannot be read
     resource function get verify(string workbookPath)
             returns VerifyReportResponse|http:BadRequest|http:InternalServerError {
 
@@ -48,7 +49,7 @@ service /reports on new http:Listener(servicePort) {
             return <http:BadRequest>{body: errorMessage};
         }
 
-        RegionTableInfo[]|error result = verifySuspiciousTransactionReport(workbookPath);
+        AlertsTableInfo|error result = verifySuspiciousTransactionReport(workbookPath);
         if result is error {
             ErrorMessage errorMessage = {message: string `Failed to verify workbook: ${result.message()}`};
             return <http:InternalServerError>{body: errorMessage};
@@ -56,7 +57,7 @@ service /reports on new http:Listener(servicePort) {
 
         return {
             workbookPath: workbookPath,
-            regionTables: result
+            alertsTable: result
         };
     }
 }
