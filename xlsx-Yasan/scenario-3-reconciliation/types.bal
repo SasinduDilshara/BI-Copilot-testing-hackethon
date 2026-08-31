@@ -45,3 +45,9 @@ public type RunInfo record {|
     string statementFile;
     int skippedRowCount;
 |};
+
+# JSON response summarizing the outcome of a reconciliation run.
+public type ReconcileResponse record {|
+    Mismatch[] mismatches;
+    int skippedRowCount;
+|};
