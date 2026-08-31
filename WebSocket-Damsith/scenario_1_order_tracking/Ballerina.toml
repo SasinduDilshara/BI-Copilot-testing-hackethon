@@ -1,0 +1,3 @@
+[workspace]
+title = "scenario-1-order-tracking"
+packages = ["order_tracker"]
