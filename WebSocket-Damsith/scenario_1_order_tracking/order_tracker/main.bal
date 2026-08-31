@@ -61,9 +61,8 @@ isolated function authorizeOrderAccess(http:Request request, string orderId) ret
         return error websocket:UpgradeError("Invalid or expired JWT", validationResult);
     }
 
-    // jwt:Payload is an open record, so application-specific claims are accessible via map access.
-    map<json> tokenClaims = <map<json>>validationResult;
-    json claimedOrderIdValue = tokenClaims[orderIdClaimName] ?: ();
+    // jwt:Payload is an open record, so application-specific claims are accessible via member access.
+    anydata claimedOrderIdValue = validationResult[orderIdClaimName];
     if claimedOrderIdValue !is string {
         return error websocket:UpgradeError(string `JWT is missing the required '${orderIdClaimName}' claim`);
     }
