@@ -5,7 +5,8 @@ service /expenses on new http:Listener(8085) {
     # Receives the raw bytes of an uploaded .xlsx expense report workbook, validates it, and returns a summary.
     #
     # + request - The inbound HTTP request carrying the raw workbook bytes
-    # + return - The upload summary on success, or a typed 400 error identifying the failing row/column/reason
+    # + return - The upload summary on success, a typed 400 error identifying the failing row/column/reason,
+    # or a typed 422 error when the sheet's own TOTAL row does not match the sum of the parsed amounts
     resource function post upload(http:Request request) returns ExpenseUploadSummary|http:BadRequest|http:UnprocessableEntity|http:InternalServerError {
         byte[]|http:ClientError workbookBytes = request.getBinaryPayload();
         if workbookBytes is http:ClientError {

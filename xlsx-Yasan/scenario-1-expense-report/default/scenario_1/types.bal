@@ -36,7 +36,7 @@ public type ExpenseEntry record {|
     boolean receiptAttached;
 |};
 
-# Successful upload processing summary.
+# Summary computed over the accepted expense entries only.
 public type ExpenseUploadSummary record {|
     string reportingPeriod;
     int totalEntries;
@@ -44,34 +44,31 @@ public type ExpenseUploadSummary record {|
     map<decimal> perDepartment;
 |};
 
-# Details describing exactly which row/column/field failed and why.
-public type ExpenseValidationErrorDetails record {
+# A data row that failed binding or validation, retaining its original cell values and the reason.
+public type RejectedExpenseRow record {|
     int rowNumber;
-    string column;
+    string[] originalValues;
     string reason;
-};
+|};
 
-# Typed error returned when a row fails binding or validation.
-public type ExpenseValidationError error<ExpenseValidationErrorDetails>;
+# Typed HTTP 200 response body for a partially or fully accepted upload.
+public type ExpenseUploadResponse record {|
+    int acceptedCount;
+    int rejectedCount;
+    ExpenseUploadSummary summary;
+    string quarantineWorkbookBase64;
+|};
 
-# Details describing a mismatch between the sheet's own TOTAL row and the sum of parsed amounts.
+# Details describing a mismatch between the sheet's own TOTAL row and the sum of the accepted amounts.
 public type ExpenseTotalMismatchDetails record {
     decimal sheetTotalAmountUsd;
     decimal computedTotalAmountUsd;
 };
 
-# Typed error returned when the sheet's TOTAL row does not match the sum of the parsed amounts.
+# Typed error returned when the sheet's TOTAL row does not match the sum of the accepted amounts.
 public type ExpenseTotalMismatchError error<ExpenseTotalMismatchDetails>;
 
-# Typed HTTP 400 response body returned when the upload is rejected.
-public type ExpenseUploadErrorPayload record {|
-    string message;
-    int rowNumber;
-    string column;
-    string reason;
-|};
-
-# Typed HTTP 422 response body returned when the sheet's own TOTAL does not match the parsed sum.
+# Typed HTTP 422 response body returned when the sheet's own TOTAL does not match the accepted sum.
 public type ExpenseTotalMismatchPayload record {|
     string message;
     string reason;
