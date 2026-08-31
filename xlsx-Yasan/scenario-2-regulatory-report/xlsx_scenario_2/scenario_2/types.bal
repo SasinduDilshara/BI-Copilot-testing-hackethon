@@ -54,7 +54,8 @@ public type RegionSummaryRow record {|
     decimal totalFlaggedAmountUsd;
 |};
 
-# Row shape written to each region sheet/table.
+# Row shape written to the consolidated 'Alerts' sheet/table. Includes the region column so a
+# single table can hold alerts across all regions.
 public type AlertRow record {|
     string alertId;
     string branchCode;
@@ -70,9 +71,8 @@ public type ErrorMessage record {|
     string message;
 |};
 
-# Metadata describing a single region's Excel table within the workbook.
-public type RegionTableInfo record {|
-    string region;
+# Metadata describing the consolidated alerts Excel table within the workbook.
+public type AlertsTableInfo record {|
     string tableName;
     string[] headers;
     int rowCount;
@@ -84,5 +84,5 @@ public type RegionTableInfo record {|
 # Response body for the workbook verification endpoint.
 public type VerifyReportResponse record {|
     string workbookPath;
-    RegionTableInfo[] regionTables;
+    AlertsTableInfo alertsTable;
 |};

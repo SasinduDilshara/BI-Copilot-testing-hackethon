@@ -5,9 +5,14 @@ import ballerina/xlsx;
 
 final string monthPatternStr = "^[0-9]{4}-(0[1-9]|1[0-2])$";
 
-# Column headers used for every region's Excel table, in column order. Reused whenever a
-# region has zero year-to-date alerts and therefore no table exists on its sheet yet.
-final string[] alertRowHeaders = ["alertId", "branchCode", "region", "alertType", "amountUsd", "raisedOn", "status"];
+# Name of the consolidated sheet and table holding every region's alerts.
+final string ALERTS_SHEET_NAME = "Alerts";
+final string ALERTS_TABLE_NAME = "tblAlerts";
+
+# Names of the per-region sheets used by the old report format. Any of these still present in
+# a workbook are removed on regeneration, since the new format consolidates them into a single
+# 'Alerts' sheet and table.
+final string[] legacyRegionSheetNames = ["APAC", "EMEA", "AMER"];
 
 # Validates that the given month string follows the yyyy-MM format.
 #
@@ -40,12 +45,12 @@ function filterAlertsByMonth(string month) returns TransactionAlert[] {
         select alert;
 }
 
-# Converts alerts into the row shape written to a region's sheet/table.
+# Converts alerts into the row shape written to the consolidated 'Alerts' sheet/table.
 #
-# + regionAlerts - alerts belonging to a single region
-# + return - the alert rows ready to be written to a sheet/table
-function toAlertRows(TransactionAlert[] regionAlerts) returns AlertRow[] {
-    return from TransactionAlert alert in regionAlerts
+# + alerts - the alerts to convert
+# + return - the alert rows ready to be written to the sheet/table
+function toAlertRows(TransactionAlert[] alerts) returns AlertRow[] {
+    return from TransactionAlert alert in alerts
         select {
             alertId: alert.alertId,
             branchCode: alert.branchCode,
@@ -57,25 +62,59 @@ function toAlertRows(TransactionAlert[] regionAlerts) returns AlertRow[] {
         };
 }
 
-# Returns the Excel table name used for a given region's sheet.
-#
-# + region - the region
-# + return - the table name, e.g. tblAPAC
-function tableNameForRegion(Region region) returns string {
-    return string `tbl${region.toString()}`;
-}
-
-# Removes any existing rows for the given month from a region's table data, so that
+# Removes any existing rows for the given month from the alerts table data, so that
 # re-running generation for the same month replaces that month's rows instead of
 # duplicating them, while leaving other months' year-to-date data untouched.
 #
-# + existingRows - the region table's current data rows
+# + existingRows - the alerts table's current data rows
 # + month - the month being (re)generated, in yyyy-MM format
 # + return - the existing rows with the target month's rows removed
 function removeMonthRows(AlertRow[] existingRows, string month) returns AlertRow[] {
     return from AlertRow row in existingRows
         where toMonthKey(row.raisedOn) != month
         select row;
+}
+
+# Builds the per-region summary rows for the given year-to-date alert rows.
+#
+# + yearToDateRows - the full set of year-to-date alert rows across all regions
+# + return - one summary row per region that has at least one alert
+function buildRegionSummary(AlertRow[] yearToDateRows) returns RegionSummaryRow[] {
+    RegionSummaryRow[] summaryRows = [];
+    Region[] regions = [APAC, EMEA, AMER];
+    foreach Region region in regions {
+        string regionName = region.toString();
+        AlertRow[] regionRows = from AlertRow row in yearToDateRows
+            where row.region == regionName
+            select row;
+        if regionRows.length() == 0 {
+            continue;
+        }
+        decimal totalAmount = 0;
+        foreach AlertRow row in regionRows {
+            totalAmount += row.amountUsd;
+        }
+        summaryRows.push({
+            region: regionName,
+            alertCount: regionRows.length(),
+            totalFlaggedAmountUsd: totalAmount
+        });
+    }
+    return summaryRows;
+}
+
+# Removes any legacy per-region sheets left over from the old report format, where each region
+# had its own sheet and table instead of a single consolidated 'Alerts' sheet and table.
+#
+# + workbook - the workbook to migrate
+# + return - an error if a legacy sheet cannot be removed
+function removeLegacyRegionSheets(xlsx:Workbook workbook) returns error? {
+    foreach string legacySheetName in legacyRegionSheetNames {
+        boolean sheetExists = check workbook.hasSheet(legacySheetName);
+        if sheetExists {
+            check workbook.deleteSheet(legacySheetName);
+        }
+    }
 }
 
 # Opens the workbook at the given path, creating a fresh year-to-date workbook with an
