@@ -1,0 +1,9 @@
+WebSocket:prompt-1:v1
+
+We're building a live order-tracking feed for our delivery platform's customer
+app. Create a Ballerina WebSocket service on port 9090 at /orders/track that a
+customer connects to with an order ID, and that pushes status updates — order
+status, courier location, and updated ETA — down to that customer as they happen.
+Simulate the status changes with a timer for now. Reject the connection at the
+upgrade if the order ID is missing or isn't a known order, and make sure a
+customer disconnecting doesn't leave a dead connection sitting in memory.
