@@ -87,6 +87,104 @@ service /config on new http:Listener(7070) {
         return configFileResponse;
     }
 
+    // Lists all configuration files in an environment folder along with their metadata.
+    resource function get [string environment]() returns EnvironmentConfigList|http:InternalServerError {
+        string|file:Error environmentDirPath = file:joinPath(configBasePath, environment);
+        if environmentDirPath is file:Error {
+            return <http:InternalServerError>{body: string `Failed to construct directory path: ${environmentDirPath.message()}`};
+        }
+
+        file:MetaData[]|file:Error entries = file:readDir(environmentDirPath);
+        if entries is file:Error {
+            return <http:InternalServerError>{body: string `Failed to read environment directory: ${entries.message()}`};
+        }
+
+        ConfigFileSummary[] fileSummaries = [];
+        foreach file:MetaData entry in entries {
+            if entry.dir {
+                continue;
+            }
+
+            string fileName = entry.absPath;
+            int lastSeparatorIndex = fileName.lastIndexOf(file:pathSeparator) ?: -1;
+            if lastSeparatorIndex >= 0 {
+                fileName = fileName.substring(lastSeparatorIndex + 1);
+            }
+
+            string lastModified = time:utcToString(entry.modifiedTime);
+            ConfigFileSummary configFileSummary = {
+                fileName,
+                fileSizeBytes: entry.size,
+                lastModified
+            };
+            fileSummaries.push(configFileSummary);
+        }
+
+        EnvironmentConfigList environmentConfigList = {
+            environment,
+            configCount: fileSummaries.length(),
+            files: fileSummaries
+        };
+        return environmentConfigList;
+    }
+
+    // Copies a configuration file from one environment to another.
+    resource function post [string environment]/[string fileName]/copy(@http:Payload CopyConfigRequest copyConfigRequest) returns CopyConfigResponse|http:Conflict|http:InternalServerError {
+        string|file:Error sourcePath = file:joinPath(configBasePath, environment, fileName);
+        if sourcePath is file:Error {
+            return <http:InternalServerError>{body: string `Failed to construct source file path: ${sourcePath.message()}`};
+        }
+
+        string targetEnvironment = copyConfigRequest.targetEnvironment;
+        string|file:Error targetDirPath = file:joinPath(configBasePath, targetEnvironment);
+        if targetDirPath is file:Error {
+            return <http:InternalServerError>{body: string `Failed to construct target directory path: ${targetDirPath.message()}`};
+        }
+
+        boolean|file:Error targetDirExists = file:test(targetDirPath, file:EXISTS);
+        if targetDirExists is file:Error {
+            return <http:InternalServerError>{body: string `Failed to check target directory existence: ${targetDirExists.message()}`};
+        }
+        if !targetDirExists {
+            file:Error? createDirResult = file:createDir(targetDirPath, file:RECURSIVE);
+            if createDirResult is file:Error {
+                return <http:InternalServerError>{body: string `Failed to create target environment directory: ${createDirResult.message()}`};
+            }
+        }
+
+        string|file:Error destinationPath = file:joinPath(configBasePath, targetEnvironment, fileName);
+        if destinationPath is file:Error {
+            return <http:InternalServerError>{body: string `Failed to construct destination file path: ${destinationPath.message()}`};
+        }
+
+        boolean overwrite = copyConfigRequest.overwrite;
+        boolean|file:Error destinationExists = file:test(destinationPath, file:EXISTS);
+        if destinationExists is file:Error {
+            return <http:InternalServerError>{body: string `Failed to check destination file existence: ${destinationExists.message()}`};
+        }
+        if !overwrite && destinationExists {
+            CopyConflictError copyConflictError = {
+                message: string `Destination file '${fileName}' already exists in environment '${targetEnvironment}'`,
+                destinationPath
+            };
+            return <http:Conflict>{body: copyConflictError};
+        }
+
+        file:Error? copyResult = overwrite
+            ? file:copy(sourcePath, destinationPath, file:REPLACE_EXISTING)
+            : file:copy(sourcePath, destinationPath);
+        if copyResult is file:Error {
+            return <http:InternalServerError>{body: string `Failed to copy file: ${copyResult.message()}`};
+        }
+
+        CopyConfigResponse copyConfigResponse = {
+            sourcePath,
+            destinationPath,
+            copiedAt: time:utcToString(time:utcNow())
+        };
+        return copyConfigResponse;
+    }
+
     // Deletes a configuration file.
     resource function delete [string environment]/[string fileName]() returns http:NoContent|http:NotFound|http:InternalServerError {
         string|file:Error filePath = file:joinPath(configBasePath, environment, fileName);
