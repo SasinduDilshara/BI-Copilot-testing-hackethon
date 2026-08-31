@@ -69,3 +69,20 @@ public type AlertRow record {|
 public type ErrorMessage record {|
     string message;
 |};
+
+# Metadata describing a single region's Excel table within the workbook.
+public type RegionTableInfo record {|
+    string region;
+    string tableName;
+    string[] headers;
+    int rowCount;
+    string dataRange;
+    boolean hasTotalsRow;
+    boolean hasStrayRowsBelowTable;
+|};
+
+# Response body for the workbook verification endpoint.
+public type VerifyReportResponse record {|
+    string workbookPath;
+    RegionTableInfo[] regionTables;
+|};
