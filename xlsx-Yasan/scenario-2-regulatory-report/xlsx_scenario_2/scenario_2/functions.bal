@@ -5,22 +5,9 @@ import ballerina/xlsx;
 
 final string monthPatternStr = "^[0-9]{4}-(0[1-9]|1[0-2])$";
 
-# Sentinel alert id used for the single placeholder row written into a freshly created region
-# table, since an Excel Table cannot be created with zero data rows. The placeholder is always
-# removed the first time real alerts are written to the table.
-final string placeholderAlertId = "__PLACEHOLDER__";
-
-# Placeholder row used only to satisfy the Excel Table's minimum-one-data-row requirement when
-# a region table is first created. Never left in place once real data is written.
-final AlertRow placeholderAlertRow = {
-    alertId: placeholderAlertId,
-    branchCode: "N/A",
-    region: "N/A",
-    alertType: "N/A",
-    amountUsd: 0,
-    raisedOn: {year: 1900, month: 1, day: 1},
-    status: "N/A"
-};
+# Column headers used for every region's Excel table, in column order. Reused whenever a
+# region has zero year-to-date alerts and therefore no table exists on its sheet yet.
+final string[] alertRowHeaders = ["alertId", "branchCode", "region", "alertType", "amountUsd", "raisedOn", "status"];
 
 # Validates that the given month string follows the yyyy-MM format.
 #
@@ -78,21 +65,22 @@ function tableNameForRegion(Region region) returns string {
     return string `tbl${region.toString()}`;
 }
 
-# Removes any existing rows for the given month, and the bootstrap placeholder row, from a
-# region's table data, so that re-running generation for the same month replaces that month's
-# rows instead of duplicating them, while leaving other months' year-to-date data untouched.
+# Removes any existing rows for the given month from a region's table data, so that
+# re-running generation for the same month replaces that month's rows instead of
+# duplicating them, while leaving other months' year-to-date data untouched.
 #
 # + existingRows - the region table's current data rows
 # + month - the month being (re)generated, in yyyy-MM format
-# + return - the existing rows with the target month's rows and the placeholder row removed
+# + return - the existing rows with the target month's rows removed
 function removeMonthRows(AlertRow[] existingRows, string month) returns AlertRow[] {
     return from AlertRow row in existingRows
-        where row.alertId != placeholderAlertId && toMonthKey(row.raisedOn) != month
+        where toMonthKey(row.raisedOn) != month
         select row;
 }
 
 # Opens the workbook at the given path, creating a fresh year-to-date workbook with an
-# empty 'Summary' sheet and one empty, named table per region if the file does not exist yet.
+# empty 'Summary' sheet and one empty sheet per region (with no table yet) if the file does
+# not exist. Region tables are created lazily, only once a region has at least one alert.
 #
 # + outputPath - the file path of the workbook
 # + return - the opened workbook, or an error
@@ -109,13 +97,40 @@ function openOrCreateWorkbook(string outputPath) returns xlsx:Workbook|error {
 
     Region[] regions = [APAC, EMEA, AMER];
     foreach Region region in regions {
-        xlsx:Sheet regionSheet = check workbook.createSheet(region.toString());
-        string tableName = tableNameForRegion(region);
-        AlertRow[] placeholderRow = [placeholderAlertRow];
-        _ = check regionSheet.createTableFromData(tableName, placeholderRow);
+        _ = check workbook.createSheet(region.toString());
     }
     check workbook.saveAs(outputPath);
     return workbook;
+}
+
+# Writes a region's year-to-date rows to its sheet. Creates the table if it does not exist yet
+# and there is data to write, updates it in place if it already exists, or removes it (and the
+# now-stale data row it occupied) if the region has no year-to-date alerts left.
+#
+# + regionSheet - the region's sheet
+# + tableName - the region's table name
+# + yearToDateRows - the full set of year-to-date rows for the region, may be empty
+# + return - an error if the write fails
+function writeRegionTable(xlsx:Sheet regionSheet, string tableName, AlertRow[] yearToDateRows) returns error? {
+    xlsx:Table|error existingTable = regionSheet.getTable(tableName);
+
+    if existingTable is xlsx:Table {
+        if yearToDateRows.length() == 0 {
+            check regionSheet.deleteTable(tableName);
+            check regionSheet.deleteRow(1);
+            return;
+        }
+        check existingTable.putRows(yearToDateRows);
+        return;
+    }
+
+    if !(existingTable is xlsx:TableNotFoundError) {
+        return existingTable;
+    }
+    if yearToDateRows.length() == 0 {
+        return;
+    }
+    _ = check regionSheet.createTableFromData(tableName, yearToDateRows);
 }
 
 # Generates or extends the year-to-date Suspicious Transaction Summary workbook at the given
@@ -141,11 +156,17 @@ function generateSuspiciousTransactionReport(string month, string outputPath) re
         AlertRow[] newRows = toAlertRows(regionMonthAlerts);
 
         string tableName = tableNameForRegion(region);
-        xlsx:Table regionTable = check workbook.getTable(tableName);
-        AlertRow[] existingRows = check regionTable.getRows();
+        xlsx:Sheet regionSheet = check workbook.getSheet(region.toString());
+        xlsx:Table|error existingTableForRead = regionSheet.getTable(tableName);
+        AlertRow[] existingRows = [];
+        if existingTableForRead is xlsx:Table {
+            existingRows = check existingTableForRead.getRows();
+        } else if !(existingTableForRead is xlsx:TableNotFoundError) {
+            return existingTableForRead;
+        }
         AlertRow[] retainedRows = removeMonthRows(existingRows, month);
         AlertRow[] yearToDateRows = [...retainedRows, ...newRows];
-        check regionTable.putRows(yearToDateRows);
+        check writeRegionTable(regionSheet, tableName, yearToDateRows);
 
         if yearToDateRows.length() == 0 {
             continue;
@@ -176,7 +197,24 @@ function generateSuspiciousTransactionReport(string month, string outputPath) re
 # + return - the region's table metadata, or an error
 function buildRegionTableInfo(xlsx:Workbook workbook, Region region) returns RegionTableInfo|error {
     string tableName = tableNameForRegion(region);
-    xlsx:Table regionTable = check workbook.getTable(tableName);
+    xlsx:Sheet regionSheet = check workbook.getSheet(region.toString());
+    xlsx:Table|error regionTable = regionSheet.getTable(tableName);
+
+    if regionTable is xlsx:TableNotFoundError {
+        xlsx:CellRange? usedCellRange = check regionSheet.getUsedCellRange();
+        return {
+            region: region.toString(),
+            tableName: tableName,
+            headers: [],
+            rowCount: 0,
+            dataRange: "",
+            hasTotalsRow: false,
+            hasStrayRowsBelowTable: usedCellRange is xlsx:CellRange
+        };
+    }
+    if regionTable is error {
+        return regionTable;
+    }
 
     string[] headers = check regionTable.getHeaders();
     int rowCount = check regionTable.getRowCount();
@@ -184,7 +222,6 @@ function buildRegionTableInfo(xlsx:Workbook workbook, Region region) returns Reg
     boolean hasTotalsRow = check regionTable.hasTotalRow();
 
     xlsx:CellRange tableCellRange = check regionTable.getCellRange();
-    xlsx:Sheet regionSheet = check workbook.getSheet(region.toString());
     xlsx:CellRange? usedCellRange = check regionSheet.getUsedCellRange();
     boolean hasStrayRowsBelowTable = false;
     if usedCellRange is xlsx:CellRange {
