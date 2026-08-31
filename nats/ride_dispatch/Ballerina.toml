@@ -1,0 +1,9 @@
+[package]
+org = "induwara"
+name = "ride_dispatch"
+version = "0.1.0"
+distribution = "2201.13.5"
+title = "ride-dispatch"
+
+[build-options]
+sticky = true

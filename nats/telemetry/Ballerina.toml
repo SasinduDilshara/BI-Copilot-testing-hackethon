@@ -1,0 +1,9 @@
+[package]
+org = "induwara"
+name = "telemetry"
+version = "0.1.0"
+distribution = "2201.13.5"
+title = "telemetry"
+
+[build-options]
+sticky = true

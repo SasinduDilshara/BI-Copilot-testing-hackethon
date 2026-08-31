@@ -1,0 +1,3 @@
+[workspace]
+title = "nats"
+packages = ["ride_dispatch", "order_events", "telemetry"]
