@@ -1,17 +1,39 @@
 import ballerina/io;
+import ballerina/time;
 import ballerina/xlsx;
 
-configurable string statementPath = "../fixtures/bank-statement-2026-08.xlsx";
+configurable string statementPath = "../fixtures/bank-statement-2026-09.xlsx";
 configurable string ledgerPath = "../fixtures/internal-ledger.xlsx";
 configurable string reportPath = "reconciliation-report.xlsx";
+configurable string errorLogPath = "reconciliation-errors.log";
 
 public function main() returns error? {
     // The statement sheet starts with a free-text bank/account banner row before the
     // real header row, so the header and data start rows must be shifted down by one.
+    // Fail-safe mode is enabled so a row with a malformed cell (e.g. a non-numeric
+    // Amount) is skipped and logged instead of aborting the entire run. The log file
+    // is appended to across runs so the history of skipped rows is preserved.
     StatementRow[] statementRows = check xlsx:parseSheet(statementPath, "Statement", {
+        headerRowIndex: 1,
+        dataStartRowIndex: 2,
+        failSafe: {
+            enableConsoleLogs: true,
+            fileOutputMode: {
+                filePath: errorLogPath,
+                contentType: xlsx:RAW_AND_METADATA,
+                fileWriteOption: xlsx:APPEND
+            }
+        }
+    });
+
+    // The raw row count (unaffected by type-conversion failures) tells us how many
+    // data rows the sheet actually contained, so the difference against the
+    // successfully parsed rows gives the number of rows fail-safe mode skipped.
+    string[][] rawStatementRows = check xlsx:parseSheet(statementPath, "Statement", {
         headerRowIndex: 1,
         dataStartRowIndex: 2
     });
+    int skippedRowCount = rawStatementRows.length() - statementRows.length();
 
     xlsx:Workbook ledgerWorkbook = check xlsx:fromFile(ledgerPath);
     xlsx:Table ledgerTable = check ledgerWorkbook.getTable("LedgerEntries");
@@ -24,8 +46,15 @@ public function main() returns error? {
     // every previous night on top of the current ones.
     check xlsx:writeSheet(mismatches, reportPath, "Mismatches", sheetWriteMode = xlsx:REPLACE);
 
+    string runTimestamp = time:utcToString(time:utcNow());
+    RunInfo[] runInfo = [
+        {runTimestamp, statementFile: statementPath, skippedRowCount}
+    ];
+    check xlsx:writeSheet(runInfo, reportPath, "Run Info", sheetWriteMode = xlsx:REPLACE);
+
     io:println(string `Reconciled ${statementRows.length()} statement rows against ` +
-            string `${ledgerRows.length()} ledger entries: ${mismatches.length()} mismatch(es).`);
+            string `${ledgerRows.length()} ledger entries: ${mismatches.length()} mismatch(es), ` +
+            string `${skippedRowCount} row(s) skipped.`);
     foreach Mismatch m in mismatches {
         io:println(string `  ${m.kind}: ${m.txnRef}`);
     }

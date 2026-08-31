@@ -38,3 +38,10 @@ public type Mismatch record {|
     decimal? statementAmount;
     decimal? ledgerAmount;
 |};
+
+# Metadata about a single reconciliation run, written to the 'Run Info' sheet.
+public type RunInfo record {|
+    string runTimestamp;
+    string statementFile;
+    int skippedRowCount;
+|};
