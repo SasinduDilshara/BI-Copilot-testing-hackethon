@@ -44,3 +44,16 @@ public type EnvironmentConfigList record {|
     int configCount;
     ConfigFileSummary[] files;
 |};
+
+// Represents a single detected change to a configuration file on disk.
+public type ConfigChangeEvent record {|
+    string changeType;
+    string filePath;
+    string detectedAt;
+|};
+
+// Response containing the stored configuration change audit events.
+public type ConfigAuditLog record {|
+    int totalEvents;
+    ConfigChangeEvent[] events;
+|};

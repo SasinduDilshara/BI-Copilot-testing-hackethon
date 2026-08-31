@@ -185,6 +185,16 @@ service /config on new http:Listener(7070) {
         return copyConfigResponse;
     }
 
+    // Returns the stored configuration file change audit events.
+    resource function get audit/events() returns ConfigAuditLog {
+        ConfigChangeEvent[] events = getConfigChangeEvents();
+        ConfigAuditLog configAuditLog = {
+            totalEvents: events.length(),
+            events
+        };
+        return configAuditLog;
+    }
+
     // Deletes a configuration file.
     resource function delete [string environment]/[string fileName]() returns http:NoContent|http:NotFound|http:InternalServerError {
         string|file:Error filePath = file:joinPath(configBasePath, environment, fileName);
