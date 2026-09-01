@@ -6,3 +6,12 @@ public type SensorReading record {|
     string unit;
     string timestamp;
 |};
+
+// Represents a critical alert forwarded to the downstream alert system.
+public type AlertPayload record {|
+    string sensorId;
+    string sensorType;
+    decimal value;
+    decimal threshold;
+    string detectedAt;
+|};
