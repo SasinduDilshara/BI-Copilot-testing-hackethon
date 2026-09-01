@@ -56,6 +56,16 @@ isolated function deregisterTicketSubscriber(websocket:Caller caller) {
 
 // Applies a subscription change sent by an agent over an existing connection
 // and returns the resulting queue set so the caller can be acknowledged.
+//
+// requestedQueues is made readonly only so it can legally cross into the
+// lock (isolated root) below. Inside the lock, resultingQueues is ALWAYS
+// built with a query expression (`from ... select`), never `.clone()`.
+// A query expression always constructs a brand-new mutable array, whereas
+// `.clone()` on an already-readonly value returns that SAME readonly value
+// (a no-op) - if that had been stored as subscribedQueues, a later push()
+// on a "cloned" copy of it would panic with InvalidUpdate. The same applies
+// to the returned array, which is why it is also produced via a readonly
+// clone rather than reusing the mutable resultingQueues reference.
 isolated function updateTicketSubscription(websocket:Caller caller, QueueSubscriptionUpdate subscriptionUpdate)
         returns string[] {
     QueueSubscriptionAction action = subscriptionUpdate.action;
@@ -68,9 +78,9 @@ isolated function updateTicketSubscription(websocket:Caller caller, QueueSubscri
         string[] currentQueues = existingSubscriber.subscribedQueues;
         string[] resultingQueues;
         if action == REPLACE {
-            resultingQueues = requestedQueues.clone();
+            resultingQueues = from string requestedQueue in requestedQueues select requestedQueue;
         } else if action == SUBSCRIBE {
-            resultingQueues = currentQueues.clone();
+            resultingQueues = from string existingQueue in currentQueues select existingQueue;
             foreach string requestedQueue in requestedQueues {
                 if resultingQueues.indexOf(requestedQueue) is () {
                     resultingQueues.push(requestedQueue);
@@ -82,7 +92,7 @@ isolated function updateTicketSubscription(websocket:Caller caller, QueueSubscri
                 select existingQueue;
         }
         ticketSubscribers[caller.getConnectionId()] = {caller, subscribedQueues: resultingQueues};
-        return resultingQueues.clone();
+        return resultingQueues.cloneReadOnly();
     }
 }
 

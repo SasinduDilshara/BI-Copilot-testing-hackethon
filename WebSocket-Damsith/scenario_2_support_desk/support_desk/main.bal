@@ -127,9 +127,20 @@ service class TicketLiveService {
     }
 
     // Lets an agent change their queue selection without reconnecting.
+    // The update is trapped so that an unexpected panic here - from this or
+    // any future bug - only fails this one message/connection instead of
+    // taking down the whole service (which would also kill the unrelated
+    // HTTP API sharing the same process).
     remote function onMessage(websocket:Caller caller, QueueSubscriptionUpdate subscriptionUpdate)
             returns QueueSubscriptionAck|error? {
-        string[] subscribedQueues = updateTicketSubscription(caller = caller, subscriptionUpdate = subscriptionUpdate);
+        string[]|error subscriptionResult = trap updateTicketSubscription(
+                caller = caller, subscriptionUpdate = subscriptionUpdate);
+        if subscriptionResult is error {
+            log:printError("failed to apply queue subscription update",
+                connectionId = caller.getConnectionId(), 'error = subscriptionResult);
+            return error("failed to apply subscription update");
+        }
+        string[] subscribedQueues = subscriptionResult;
         log:printInfo("agent updated queue subscription",
             connectionId = caller.getConnectionId(), queues = subscribedQueues);
         return {subscribedQueues};
