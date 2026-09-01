@@ -1,0 +1,3 @@
+[workspace]
+title = "ibm-mq"
+packages = ["payment_queue", "claims_consumer", "market_data"]

@@ -1,0 +1,9 @@
+[package]
+org = "induwara"
+name = "claims_consumer"
+version = "0.1.0"
+distribution = "2201.13.5"
+title = "claims-consumer"
+
+[build-options]
+sticky = true
