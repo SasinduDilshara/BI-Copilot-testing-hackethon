@@ -1,0 +1,9 @@
+[package]
+org = "damsith"
+name = "support_desk"
+version = "0.1.0"
+distribution = "2201.13.4"
+title = "support_desk"
+
+[build-options]
+sticky = true
