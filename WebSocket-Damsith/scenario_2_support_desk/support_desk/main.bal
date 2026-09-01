@@ -2,6 +2,7 @@
 
 import ballerina/http;
 import ballerina/log;
+import ballerina/websocket;
 
 listener http:Listener ticketListener = new (servicePort);
 
@@ -84,8 +85,38 @@ service /api/v1 on ticketListener {
         Ticket? updatedTicket = applyTicketUpdate(ticketId = ticketId, updateRequest = updateRequest);
         if updatedTicket is Ticket {
             log:printInfo("ticket updated", ticketId = ticketId);
+            broadcastTicketEvent(eventType = TICKET_UPDATED, ticket = updatedTicket);
             return updatedTicket;
         }
         return <http:NotFound>{body: {errorMessage: "ticket not found", errorDetail: ticketId}};
+    }
+}
+
+// WebSocket upgrade endpoint: agents connect here to receive ticket
+// created/updated events pushed in real time instead of polling the HTTP API.
+// Reuses the same HTTP listener/port so the existing HTTP contract is untouched.
+service /tickets/live on new websocket:Listener(ticketListener) {
+
+    resource function get .() returns websocket:Service|websocket:UpgradeError {
+        return new TicketLiveService();
+    }
+}
+
+service class TicketLiveService {
+    *websocket:Service;
+
+    remote function onOpen(websocket:Caller caller) returns error? {
+        registerTicketSubscriber(caller);
+        log:printInfo("agent connected to ticket live feed", connectionId = caller.getConnectionId());
+    }
+
+    remote function onClose(websocket:Caller caller, int statusCode, string reason) {
+        deregisterTicketSubscriber(caller);
+        log:printInfo("agent disconnected from ticket live feed", connectionId = caller.getConnectionId());
+    }
+
+    remote function onError(websocket:Caller caller, error err) returns error? {
+        deregisterTicketSubscriber(caller);
+        log:printWarn("ticket live feed connection error", connectionId = caller.getConnectionId(), 'error = err);
     }
 }

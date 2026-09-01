@@ -1,0 +1,3 @@
+WebSocket:prompt-2:v1
+
+In our existing support-desk project — HTTP /tickets endpoints over an in-memory store — add a WebSocket layer at /tickets/live so agents get ticket changes pushed to them instead of polling us every few seconds. When a ticket is created or updated through the existing HTTP endpoints, that change should reach every connected agent. Reuse the ticket records already in types.bal rather than defining new ones, and don't change the existing HTTP contract.
