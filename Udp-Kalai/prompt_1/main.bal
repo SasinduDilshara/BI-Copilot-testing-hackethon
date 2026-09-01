@@ -4,9 +4,6 @@ import ballerina/udp;
 const string ALERT_SYSTEM_HOST = "alert-system.internal";
 const int ALERT_SYSTEM_PORT = 9999;
 
-const decimal TEMPERATURE_THRESHOLD = 85.0;
-const decimal PRESSURE_THRESHOLD = 200.0;
-
 service on new udp:Listener(9000) {
 
     remote function onDatagram(readonly & udp:Datagram datagram, udp:Caller caller) returns udp:Error? {
@@ -47,8 +44,9 @@ service on new udp:Listener(9000) {
         }
 
         if isCriticalReading(sensorType, value) {
-            decimal threshold = sensorType == "temperature" ? TEMPERATURE_THRESHOLD : PRESSURE_THRESHOLD;
+            decimal threshold = sensorType == "temperature" ? temperatureThreshold : pressureThreshold;
             check forwardCriticalAlert(sensorId, sensorType, value, threshold, timestamp);
+            recordAlertEvent(sensorId, sensorType, value, timestamp);
         }
 
         string ackMessage = string `ACK|${sensorId}|${timestamp}`;

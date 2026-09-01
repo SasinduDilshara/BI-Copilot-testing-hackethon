@@ -15,3 +15,12 @@ public type AlertPayload record {|
     decimal threshold;
     string detectedAt;
 |};
+
+// Represents a critical alert event stored in the alert history.
+public type AlertEvent record {|
+    string sensorId;
+    string sensorType;
+    decimal value;
+    string detectedAt;
+    boolean acknowledged;
+|};
