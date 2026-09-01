@@ -101,17 +101,38 @@ service /api/v1 on ticketListener {
 // The existing HTTP contract on servicePort is completely untouched.
 service /tickets/live on new websocket:Listener(liveServicePort) {
 
-    resource function get .() returns websocket:Service|websocket:UpgradeError {
-        return new TicketLiveService();
+    // Initial queues can be selected via ?queue=hana&queue=nora on the upgrade
+    // request. The selection can be changed later over the same connection
+    // by sending a QueueSubscriptionUpdate message.
+    resource function get .(http:Request request) returns websocket:Service|websocket:UpgradeError {
+        string[]? requestedQueues = request.getQueryParamValues("queue");
+        string[] initialQueues = requestedQueues is string[] ? requestedQueues : [];
+        return new TicketLiveService(initialQueues);
     }
 }
 
 service class TicketLiveService {
     *websocket:Service;
 
+    private final string[] initialQueues;
+
+    function init(string[] initialQueues) {
+        self.initialQueues = initialQueues;
+    }
+
     remote function onOpen(websocket:Caller caller) returns error? {
-        registerTicketSubscriber(caller);
-        log:printInfo("agent connected to ticket live feed", connectionId = caller.getConnectionId());
+        registerTicketSubscriber(caller, self.initialQueues);
+        log:printInfo("agent connected to ticket live feed",
+            connectionId = caller.getConnectionId(), queues = self.initialQueues);
+    }
+
+    // Lets an agent change their queue selection without reconnecting.
+    remote function onMessage(websocket:Caller caller, QueueSubscriptionUpdate subscriptionUpdate)
+            returns QueueSubscriptionAck|error? {
+        string[] subscribedQueues = updateTicketSubscription(caller = caller, subscriptionUpdate = subscriptionUpdate);
+        log:printInfo("agent updated queue subscription",
+            connectionId = caller.getConnectionId(), queues = subscribedQueues);
+        return {subscribedQueues};
     }
 
     remote function onClose(websocket:Caller caller, int statusCode, string reason) {
