@@ -1,0 +1,3 @@
+WebSocket:prompt-2:v3
+
+now I can connect to the websocket, but still it doesn't show when we create a ticket in a separate parallel terminal. I think this is because TICKET_CREATED is never emitted. The enum member exists, but broadcastTicketEvent was only wired into the PUT handler, not POST. On the working probe, a create produced no frame at all and the update produced: {"eventType":"TICKET_UPDATED","ticket":{"ticketId":"TKT-1", ... "ticketStatus":"IN_PROGRESS","assignedTo":"hana", ...}}

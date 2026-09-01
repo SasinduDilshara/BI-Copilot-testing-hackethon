@@ -18,6 +18,7 @@ service /api/v1 on ticketListener {
         Ticket createdTicket = createTicket(createRequest = createRequest);
         string createdId = createdTicket.ticketId;
         log:printInfo("ticket created", ticketId = createdId);
+        broadcastTicketEvent(eventType = TICKET_CREATED, ticket = createdTicket);
         return <http:Created>{
             body: createdTicket,
             headers: {"Location": string `/api/v1/tickets/${createdId}`}
