@@ -1,6 +1,7 @@
 // Externalized settings. Values are supplied through Config.toml.
 
 configurable int servicePort = ?;
+configurable int liveServicePort = ?;
 configurable string defaultPriority = ?;
 configurable string defaultAssignee = ?;
 configurable int maxPageSize = ?;

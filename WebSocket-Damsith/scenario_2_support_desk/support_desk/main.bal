@@ -94,8 +94,11 @@ service /api/v1 on ticketListener {
 
 // WebSocket upgrade endpoint: agents connect here to receive ticket
 // created/updated events pushed in real time instead of polling the HTTP API.
-// Reuses the same HTTP listener/port so the existing HTTP contract is untouched.
-service /tickets/live on new websocket:Listener(ticketListener) {
+// Runs on its own listener/port: sharing ticketListener would attach two
+// service-dispatch mechanisms (http:Service + websocket upgrade) to the same
+// http:Listener instance, which fails the upgrade with an unlogged 500.
+// The existing HTTP contract on servicePort is completely untouched.
+service /tickets/live on new websocket:Listener(liveServicePort) {
 
     resource function get .() returns websocket:Service|websocket:UpgradeError {
         return new TicketLiveService();
