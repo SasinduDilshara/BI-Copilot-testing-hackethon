@@ -17,3 +17,14 @@ public type PlayerState record {|
     decimal speed;
     string lastUpdated;
 |};
+
+# Represents a snapshot of the current game session statistics.
+#
+# + activePlayers - Number of players currently tracked as active
+# + totalPacketsReceived - Total number of UDP packets received since startup
+# + uptimeSeconds - Number of seconds the server has been running
+public type SessionStats record {|
+    int activePlayers;
+    int totalPacketsReceived;
+    int uptimeSeconds;
+|};

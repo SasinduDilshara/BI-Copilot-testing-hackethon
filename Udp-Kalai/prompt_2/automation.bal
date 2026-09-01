@@ -1,4 +1,5 @@
 import ballerina/http;
+import ballerina/time;
 
 service /game on new http:Listener(8081) {
 
@@ -17,5 +18,25 @@ service /game on new http:Listener(8081) {
         return {
             body: string `Player with ID '${playerId}' not found`
         };
+    }
+
+    resource function get session/stats() returns SessionStats {
+        int activePlayers;
+        lock {
+            activePlayers = playerStates.length();
+        }
+
+        int packetsReceived;
+        lock {
+            packetsReceived = totalPacketsReceived;
+        }
+
+        time:Seconds uptime = time:utcDiffSeconds(time:utcNow(), serverStartTime);
+        SessionStats sessionStats = {
+            activePlayers: activePlayers,
+            totalPacketsReceived: packetsReceived,
+            uptimeSeconds: <int>uptime
+        };
+        return sessionStats;
     }
 }
