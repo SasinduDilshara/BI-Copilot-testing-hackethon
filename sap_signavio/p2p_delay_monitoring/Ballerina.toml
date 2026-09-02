@@ -1,0 +1,9 @@
+[package]
+org = "dilanperera"
+name = "p2p_delay_monitoring"
+version = "0.1.0"
+distribution = "2201.13.6"
+title = "P2P Delay Monitoring"
+
+[build-options]
+sticky = true

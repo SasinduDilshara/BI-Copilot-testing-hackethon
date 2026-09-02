@@ -1,0 +1,3 @@
+[workspace]
+title = "SAP Signavio"
+packages = ["p2p_delay_monitoring"]
