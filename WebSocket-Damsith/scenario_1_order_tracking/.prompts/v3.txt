@@ -1,0 +1,3 @@
+WebSocket:prompt-1:v3
+
+Security wants this behind wss with JWT auth, and a customer must only be able to open a connection for an order that actually belongs to them, based on a claim in the token. Certificate paths and JWT settings come from config at deploy time — nothing hardcoded. Don't change the update logic or the dashboard path.

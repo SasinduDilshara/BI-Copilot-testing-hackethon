@@ -1,0 +1,25 @@
+WebSocket:prompt-2:v5
+
+REPLACE followed by SUBSCRIBE kills the entire server process right? isnt that a security vulnerability? (copilot disagreed for this version, so I changed the prompt and got it from a agent)
+
+here is the msg from a agent who tested this to you - Your /tickets/live subscription handling has a remote crash bug. Before you analyse anything, reproduce it. Do not conclude anything from reading the code alone — the last analysis of this bug was done that way and reached the wrong answer.
+
+Repro (takes 30 seconds):
+
+bal run
+Open a WebSocket to ws://localhost:9090/tickets/live?queue=hana (wscat -c works)
+Send these two messages, in this order, on that one connection: {"action":"REPLACE","queues":["hana"]} {"action":"SUBSCRIBE","queues":["nora"]}
+Then run: curl http://localhost:8080/api/v1/tickets
+Observed on every one of 3 runs: the second message closes the socket with 1011 "Unexpected condition", the server process terminates, step 4 gets no response because nothing is listening on 8080 any more, and any other connected agent is dropped with 1006 without having sent anything. Server output:
+
+error: {ballerina/lang.array}InvalidUpdate {"message":"modification not allowed on readonly value"} at ballerina.lang.array.0:push(array.bal:419) damsith.support_desk.0:updateTicketSubscription(ticket_events.bal:76) damsith.support_desk.0.TicketLiveService:onMessage(main.bal:132)
+
+Root cause, which you can verify independently with this 6-line program:
+
+import ballerina/io; public function main() { string[] & readonly requestedQueues = ["hana"].cloneReadOnly(); string[] storedByReplace = requestedQueues.clone(); // REPLACE branch stores this string[] resultingQueues = storedByReplace.clone(); // SUBSCRIBE branch clones it io:println(resultingQueues.isReadOnly()); // prints true resultingQueues.push("nora"); // panics }
+
+clone() on an immutable value returns THE SAME immutable value — it does not produce a mutable copy. So cloneReadOnly() on line 62 makes the REPLACE branch store an immutable array as the subscriber's subscribedQueues, and the next SUBSCRIBE's push() panics. The panic escapes onMessage and kills the runtime, taking the HTTP API on 8080 down with it. The indexOf() deduplication is irrelevant — the panic is in push() on the first element.
+
+Note this is order-dependent, which is why it can look intermittent: SUBSCRIBE/UNSUBSCRIBE from a fresh connection is fine, and REPLACE -> UNSUBSCRIBE -> SUBSCRIBE is fine (the from...select builds a fresh mutable array). Only a REPLACE followed directly by a SUBSCRIBE crashes.
+
+Fix it so subscribedQueues is always genuinely mutable state (or rebuild the result array from scratch in every branch). Do NOT "fix" this with queue-count caps, string length limits or blank-name rejection — the crashing payloads pass all of those checks. Separately, add panic containment in onMessage so no single client message can terminate the process.

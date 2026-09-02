@@ -1,0 +1,3 @@
+WebSocket:prompt-2:v4
+
+Agents only care about tickets in their own queue. Let an agent say which queues they want when they connect, only push those, and let them change that selection over the same connection without reconnecting.
