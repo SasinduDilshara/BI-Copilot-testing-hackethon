@@ -1,0 +1,9 @@
+[package]
+org = "dilanperera"
+name = "sales_order_retrieval"
+version = "0.1.0"
+distribution = "2201.13.6"
+title = "Sales Order Retrieval"
+
+[build-options]
+sticky = true
