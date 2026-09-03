@@ -13,3 +13,14 @@ configurable decimal partnerApiTimeout = 30;
 // error. The partner network occasionally drops connections during their
 // nightly window; retrying twice clears almost all of those.
 configurable int maxForwardRetries = 2;
+
+// Path to the public certificate used to verify the signature on bearer
+// tokens issued by the broker portal's identity provider.
+configurable string idpCertPath = ?;
+
+// Expected issuer of a genuine bearer token. Tokens asserting any other
+// issuer are rejected outright.
+configurable string idpTokenIssuer = ?;
+
+// Expected audience of a genuine bearer token, i.e. this service.
+configurable string idpTokenAudience = ?;

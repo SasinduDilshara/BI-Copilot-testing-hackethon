@@ -3,14 +3,26 @@ import ballerina/jwt;
 
 listener http:Listener claimsListener = new (servicePort);
 
-// Reads the caller identity straight off the inbound bearer token. The broker
-// portal mints these before it calls us, so by the time a request lands on a
-// resource the token already carries the portal's word on who the caller is -
-// all we need out of it is the sub claim.
+// Validator configuration for bearer tokens minted by the broker portal's
+// identity provider. Signature verification is done against the IdP's own
+// certificate, so a token cannot be trusted unless the IdP actually signed
+// it - crafting a plausible-looking payload is not enough to pass this.
+final jwt:ValidatorConfig tokenValidatorConfig = {
+    issuer: idpTokenIssuer,
+    audience: idpTokenAudience,
+    clockSkew: 60,
+    signatureConfig: {
+        certFile: idpCertPath
+    }
+};
+
+// Verifies the inbound bearer token against the identity provider's
+// certificate and expected issuer/audience before trusting anything inside
+// it, then reads the caller identity off the validated sub claim.
 function getCallerIdentity(http:Request request) returns string|error {
     string authHeader = check request.getHeader("Authorization");
     string token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
-    [jwt:Header, jwt:Payload] [_, payload] = check jwt:decode(token);
+    jwt:Payload payload = check jwt:validate(token, tokenValidatorConfig);
     string? subject = payload.sub;
     if subject is () {
         return error("bearer token carries no sub claim");
