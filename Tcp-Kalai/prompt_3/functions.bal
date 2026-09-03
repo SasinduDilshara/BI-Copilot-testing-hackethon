@@ -1,5 +1,6 @@
 import ballerina/time;
 import ballerina/tcp;
+import ballerina/uuid;
 
 // Builds the current timestamp as a string.
 isolated function currentTimestamp() returns string {
@@ -124,19 +125,82 @@ isolated function isDeviceKnown(string deviceId) returns boolean {
 }
 
 // Sends a command to a connected device over its existing TCP connection.
-// Returns true if the device was online and the command was sent, false if the device is offline.
-isolated function sendCommandToDevice(string deviceId, string commandType, map<string> parameters) returns boolean|tcp:Error {
+// Returns the recorded CommandRecord if the device was online and the command was sent, () if the device is offline.
+isolated function sendCommandToDevice(string deviceId, "START"|"STOP"|"CONFIGURE"|"RESET" commandType, map<string> parameters) returns CommandRecord?|tcp:Error {
     tcp:Caller? deviceCaller = ();
     lock {
         deviceCaller = deviceCallerRegistry[deviceId];
     }
     if deviceCaller is () {
-        return false;
+        return ();
     }
     json parametersJson = parameters.toJson();
     string parametersJsonText = parametersJson.toJsonString();
     string commandMessage = string `CMD|${commandType}|${parametersJsonText}`;
     byte[] commandBytes = commandMessage.toBytes();
     check deviceCaller->writeBytes(commandBytes);
-    return true;
+    CommandRecord commandRecord = {
+        commandId: uuid:createType4AsString(),
+        commandType: commandType,
+        parameters: parameters.clone(),
+        sentAt: currentTimestamp(),
+        acknowledged: false
+    };
+    appendCommandHistory(deviceId, commandRecord);
+    return commandRecord;
+}
+
+// Appends a command record to a device's history, keeping only the last 50 entries.
+isolated function appendCommandHistory(string deviceId, CommandRecord commandRecord) {
+    lock {
+        CommandRecord[] history = deviceCommandHistoryRegistry[deviceId] ?: [];
+        history.push(commandRecord.clone());
+        int maxHistorySize = 50;
+        if history.length() > maxHistorySize {
+            history = history.slice(history.length() - maxHistorySize);
+        }
+        deviceCommandHistoryRegistry[deviceId] = history.clone();
+    }
+}
+
+// Returns the command history for a given device.
+isolated function getDeviceCommandHistory(string deviceId) returns CommandRecord[]? {
+    lock {
+        CommandRecord[]? history = deviceCommandHistoryRegistry[deviceId];
+        if history is () {
+            return ();
+        }
+        return history.clone();
+    }
+}
+
+// Marks a specific command as acknowledged for a device.
+// Returns true if the command was found and acknowledged, false if the device or command was not found.
+isolated function acknowledgeCommand(string deviceId, string commandId) returns boolean {
+    lock {
+        CommandRecord[]? history = deviceCommandHistoryRegistry[deviceId];
+        if history is () {
+            return false;
+        }
+        boolean found = false;
+        foreach int i in 0 ..< history.length() {
+            CommandRecord currentRecord = history[i];
+            if currentRecord.commandId == commandId {
+                CommandRecord updatedRecord = {
+                    commandId: currentRecord.commandId,
+                    commandType: currentRecord.commandType,
+                    parameters: currentRecord.parameters.clone(),
+                    sentAt: currentRecord.sentAt,
+                    acknowledged: true
+                };
+                history[i] = updatedRecord;
+                found = true;
+                break;
+            }
+        }
+        if found {
+            deviceCommandHistoryRegistry[deviceId] = history.clone();
+        }
+        return found;
+    }
 }

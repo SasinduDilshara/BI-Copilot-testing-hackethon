@@ -33,9 +33,26 @@ public type CommandRequest record {|
 public type CommandSentResponse record {|
     boolean commandSent;
     string deviceId;
+    string commandId;
 |};
 
 // Response payload when the target device is offline.
 public type DeviceOfflineResponse record {|
     string status;
+|};
+
+// A record of a command sent to a device, tracked for acknowledgment.
+public type CommandRecord record {|
+    string commandId;
+    "START"|"STOP"|"CONFIGURE"|"RESET" commandType;
+    map<string> parameters;
+    string sentAt;
+    boolean acknowledged = false;
+|};
+
+// Response payload confirming a command acknowledgment.
+public type CommandAckResponse record {|
+    boolean acknowledged;
+    string deviceId;
+    string commandId;
 |};

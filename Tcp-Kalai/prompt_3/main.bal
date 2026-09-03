@@ -3,8 +3,17 @@ import ballerina/log;
 import ballerina/tcp;
 
 configurable int tcpListenerPort = 4040;
+configurable string certFile = ?;
+configurable string keyFile = ?;
 
-listener tcp:Listener deviceTcpListener = new (tcpListenerPort);
+tcp:ListenerSecureSocket deviceTcpListenerSecureSocket = {
+    key: {
+        certFile: certFile,
+        keyFile: keyFile
+    }
+};
+
+listener tcp:Listener deviceTcpListener = new (tcpListenerPort, secureSocket = deviceTcpListenerSecureSocket);
 
 service on deviceTcpListener {
     remote function onConnect(tcp:Caller caller) returns tcp:ConnectionService|tcp:Error? {
