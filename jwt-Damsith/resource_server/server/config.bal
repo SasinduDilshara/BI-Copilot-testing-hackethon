@@ -14,5 +14,21 @@ configurable string idpBaseUrl = ?;
 configurable string idpRealm = ?;
 configurable string idpAudience = ?;
 
+// How long fetched JWKS keys are held in memory before Keycloak is called
+// again. This is the main lever against hammering the IdP: every inbound
+// request that hits an unpopulated/expired cache triggers a JWKS fetch, so a
+// too-short TTL reproduces the "one call per request" problem, while a too-long
+// TTL means a genuine key rotation on the IdP side goes unnoticed until this
+// value elapses (there is no pod restart involved either way — the cache is
+// just in-memory state that expires on its own).
+// 5 minutes is a reasonable middle ground: it cuts IdP calls drastically
+// under load while still picking up a rotated key well within the same shift.
+configurable decimal jwksCacheTtlSeconds = 300;
+
+// Explicit tolerance for clock drift between our pods and the IdP when
+// checking token expiry/not-before. Kept as an explicit, ops-visible setting
+// rather than relying on the JWT validator's implicit default.
+configurable decimal jwtClockSkewSeconds = 60;
+
 // HTTP listener port for the claims-processing API.
 configurable int servicePort = 9090;

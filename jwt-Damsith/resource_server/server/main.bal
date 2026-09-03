@@ -7,17 +7,22 @@ final string idpRealmBaseUrl = string `${idpBaseUrl}/realms/${idpRealm}`;
 
 // JWT validator configuration shared by every resource. The signing keys are
 // never bundled with the build — they are fetched live from Keycloak's realm
-// certificate (JWKS) endpoint and cached in memory, so key rotation on the
-// Keycloak side (old key goes passive, new key becomes active) is picked up
-// automatically: the validator matches the token's "kid" against whatever
-// keys are currently published, without redeploying this service.
+// certificate (JWKS) endpoint and held in an in-memory cache for
+// jwksCacheTtlSeconds, so key rotation on the Keycloak side (old key goes
+// passive, new key becomes active) is picked up on the next fetch after the
+// cache entry expires — no redeploy needed, and no per-request call to the
+// IdP either.
 final http:JwtValidatorConfig idpJwtValidatorConfig = {
     issuer: idpRealmBaseUrl,
     audience: idpAudience,
-    clockSkew: 60,
+    clockSkew: jwtClockSkewSeconds,
     signatureConfig: {
         jwksConfig: {
-            url: string `${idpRealmBaseUrl}/protocol/openid-connect/certs`
+            url: string `${idpRealmBaseUrl}/protocol/openid-connect/certs`,
+            cacheConfig: {
+                defaultMaxAge: jwksCacheTtlSeconds,
+                capacity: 10
+            }
         }
     }
 };
