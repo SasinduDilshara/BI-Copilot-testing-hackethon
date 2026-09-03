@@ -33,22 +33,55 @@ service /devices on deviceHttpListener {
     }
 
     resource function post [string deviceId]/command(CommandRequest commandRequest) returns CommandSentResponse|http:ServiceUnavailable|http:InternalServerError {
-        boolean|tcp:Error sendResult = sendCommandToDevice(deviceId, commandRequest.commandType, commandRequest.parameters);
+        CommandRecord?|tcp:Error sendResult = sendCommandToDevice(deviceId, commandRequest.commandType, commandRequest.parameters);
         if sendResult is tcp:Error {
             http:InternalServerError internalServerError = {
                 body: {message: string `failed to send command to device ${deviceId}`}
             };
             return internalServerError;
         }
-        boolean commandSent = sendResult;
-        if !commandSent {
+        if sendResult is () {
             DeviceOfflineResponse offlineResponse = {status: "device_offline"};
             http:ServiceUnavailable serviceUnavailable = {
                 body: offlineResponse
             };
             return serviceUnavailable;
         }
-        CommandSentResponse commandSentResponse = {commandSent: true, deviceId: deviceId};
+        CommandRecord sentCommandRecord = sendResult;
+        CommandSentResponse commandSentResponse = {
+            commandSent: true,
+            deviceId: deviceId,
+            commandId: sentCommandRecord.commandId
+        };
         return commandSentResponse;
+    }
+
+    resource function get [string deviceId]/commands() returns CommandRecord[]|http:NotFound {
+        boolean deviceKnown = isDeviceKnown(deviceId);
+        if !deviceKnown {
+            return {
+                body: {message: string `device ${deviceId} not found`}
+            };
+        }
+        CommandRecord[]? history = getDeviceCommandHistory(deviceId);
+        if history is () {
+            return [];
+        }
+        return history;
+    }
+
+    resource function put [string deviceId]/command/[string commandId]/ack() returns CommandAckResponse|http:NotFound {
+        boolean acknowledged = acknowledgeCommand(deviceId, commandId);
+        if !acknowledged {
+            return {
+                body: {message: string `command ${commandId} not found for device ${deviceId}`}
+            };
+        }
+        CommandAckResponse ackResponse = {
+            acknowledged: true,
+            deviceId: deviceId,
+            commandId: commandId
+        };
+        return ackResponse;
     }
 }
