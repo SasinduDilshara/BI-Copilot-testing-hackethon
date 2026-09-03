@@ -1,0 +1,96 @@
+import ballerina/lang.value;
+import ballerina/log;
+import ballerina/tcp;
+import ballerina/time;
+
+configurable int tcpListenerPort = 5140;
+configurable decimal logClientTimeout = 5.0;
+
+service tcp:Service on new tcp:Listener(tcpListenerPort) {
+
+    remote function onConnect(tcp:Caller caller) returns tcp:ConnectionService {
+        log:printInfo("client connected", remotePort = caller.remotePort);
+
+        string connectionId = string:'join(":", caller.remoteHost, caller.remotePort.toString());
+        string connectedAt = time:utcToString(time:utcNow());
+        ConnectionInfo connectionInfo = {
+            serviceId: "",
+            remoteHost: caller.remoteHost,
+            connectedAt: connectedAt,
+            totalLinesReceived: 0
+        };
+        registerConnection(connectionId, connectionInfo);
+
+        return new LogConnectionService(connectionId);
+    }
+}
+
+service class LogConnectionService {
+    *tcp:ConnectionService;
+
+    private final string connectionId;
+    private string? serviceId = ();
+
+    function init(string connectionId) {
+        self.connectionId = connectionId;
+    }
+
+    remote function onBytes(readonly & byte[] data) returns byte[]|tcp:Error? {
+        string|error logLine = string:fromBytes(data);
+        if logLine is error {
+            log:printError("failed to decode log line", 'error = logLine);
+            return ();
+        }
+
+        LogEntry|error logEntry = value:fromJsonStringWithType(logLine);
+        if logEntry is error {
+            log:printError("failed to parse log entry", 'error = logEntry);
+            return ();
+        }
+
+        self.serviceId = logEntry.serviceId;
+        addLogEntry(logEntry);
+        recordConnectionLogLine(self.connectionId, logEntry.serviceId);
+
+        return "OK\n".toBytes();
+    }
+
+    remote function onError(tcp:Error err) returns tcp:Error? {
+        string? serviceId = self.serviceId;
+        deregisterConnection(self.connectionId);
+        if serviceId is string {
+            log:printError("tcp connection error", event = "log_stream_error", serviceId = serviceId, 'error = err);
+        } else {
+            log:printError("tcp connection error", event = "log_stream_error", 'error = err);
+        }
+    }
+
+    remote function onClose() returns tcp:Error? {
+        string? serviceId = self.serviceId;
+        deregisterConnection(self.connectionId);
+        if serviceId is string {
+            log:printInfo("tcp connection closed", event = "log_stream_closed", serviceId = serviceId);
+        } else {
+            log:printInfo("tcp connection closed", event = "log_stream_closed");
+        }
+    }
+}
+
+// Ships a single log entry to the TCP log aggregation server running on
+// localhost:5140 and waits for the OK acknowledgement.
+function shipLogEntry(LogEntry logEntry) returns error? {
+    tcp:Client logShipperClient = check new ("localhost", tcpListenerPort, timeout = logClientTimeout);
+
+    string logLine = value:toJsonString(logEntry);
+    byte[] logLineBytes = logLine.toBytes();
+
+    check logShipperClient->writeBytes(logLineBytes);
+    byte[] & readonly acknowledgement = check logShipperClient->readBytes();
+
+    string|error acknowledgementText = string:fromBytes(acknowledgement);
+    if acknowledgementText is string {
+        log:printInfo("received acknowledgement from log server", acknowledgement = acknowledgementText);
+    }
+
+    check logShipperClient->close();
+}
