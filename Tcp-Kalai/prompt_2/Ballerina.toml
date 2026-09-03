@@ -1,0 +1,9 @@
+[package]
+org = "kalai"
+name = "prompt_2"
+version = "0.1.0"
+distribution = "2201.13.6"
+title = "prompt_2"
+
+[build-options]
+sticky = true
