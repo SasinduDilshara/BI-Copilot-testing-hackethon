@@ -24,3 +24,26 @@ configurable string idpTokenIssuer = ?;
 
 // Expected audience of a genuine bearer token, i.e. this service.
 configurable string idpTokenAudience = ?;
+
+// Path to our private key, registered with the partner network, used to sign
+// the assertions we present to it in place of a long-lived shared token.
+configurable string partnerSigningKeyPath = ?;
+
+// Password protecting partnerSigningKeyPath, if the key file is encrypted.
+configurable string partnerSigningKeyPassword = ?;
+
+// Subject/issuer we assert ourselves as when signing a partner token. The
+// partner network identifies us by this value.
+configurable string partnerAssertionSubject = "claims-forwarder";
+
+// Audience the partner network expects on a self-signed assertion.
+configurable string partnerAssertionAudience = "claims-api";
+
+// How long a self-signed assertion is valid for, in seconds, before the
+// partner network will no longer accept it.
+configurable decimal partnerAssertionValidity = 300;
+
+// How long before expiry we mint a replacement assertion, in seconds. Wide
+// enough that a slow request never straddles the token's death and starts
+// collecting 401s from the partner network.
+configurable decimal partnerAssertionRefreshMargin = 30;
