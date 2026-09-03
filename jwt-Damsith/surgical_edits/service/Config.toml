@@ -1,0 +1,5 @@
+[damsith.service]
+servicePort = 8080
+partnerApiUrl = "https://claims.partner-net.example.com/v2"
+partnerApiTimeout = 30
+maxForwardRetries = 2
