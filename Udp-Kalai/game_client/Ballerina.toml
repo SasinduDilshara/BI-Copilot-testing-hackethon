@@ -1,0 +1,9 @@
+[package]
+org = "kalai"
+name = "game_client"
+version = "0.1.0"
+distribution = "2201.13.6"
+title = "game_client"
+
+[build-options]
+sticky = true
