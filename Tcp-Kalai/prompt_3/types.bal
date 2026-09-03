@@ -22,3 +22,20 @@ public type DeviceStatusInfo record {|
     string lastSeenAt;
     string status;
 |};
+
+// Command request sent to a device.
+public type CommandRequest record {|
+    "START"|"STOP"|"CONFIGURE"|"RESET" commandType;
+    map<string> parameters;
+|};
+
+// Response payload for a successfully dispatched command.
+public type CommandSentResponse record {|
+    boolean commandSent;
+    string deviceId;
+|};
+
+// Response payload when the target device is offline.
+public type DeviceOfflineResponse record {|
+    string status;
+|};

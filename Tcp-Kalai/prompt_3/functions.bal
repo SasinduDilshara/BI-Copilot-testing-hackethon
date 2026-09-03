@@ -122,3 +122,21 @@ isolated function isDeviceKnown(string deviceId) returns boolean {
         return deviceInfoRegistry.hasKey(deviceId);
     }
 }
+
+// Sends a command to a connected device over its existing TCP connection.
+// Returns true if the device was online and the command was sent, false if the device is offline.
+isolated function sendCommandToDevice(string deviceId, string commandType, map<string> parameters) returns boolean|tcp:Error {
+    tcp:Caller? deviceCaller = ();
+    lock {
+        deviceCaller = deviceCallerRegistry[deviceId];
+    }
+    if deviceCaller is () {
+        return false;
+    }
+    json parametersJson = parameters.toJson();
+    string parametersJsonText = parametersJson.toJsonString();
+    string commandMessage = string `CMD|${commandType}|${parametersJsonText}`;
+    byte[] commandBytes = commandMessage.toBytes();
+    check deviceCaller->writeBytes(commandBytes);
+    return true;
+}
