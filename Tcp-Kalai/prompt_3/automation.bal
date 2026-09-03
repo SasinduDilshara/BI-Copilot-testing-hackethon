@@ -1,4 +1,5 @@
 import ballerina/http;
+import ballerina/tcp;
 
 configurable int httpListenerPort = 8083;
 
@@ -29,5 +30,25 @@ service /devices on deviceHttpListener {
         }
         boolean online = isDeviceOnline(deviceId);
         return online ? "online" : "offline";
+    }
+
+    resource function post [string deviceId]/command(CommandRequest commandRequest) returns CommandSentResponse|http:ServiceUnavailable|http:InternalServerError {
+        boolean|tcp:Error sendResult = sendCommandToDevice(deviceId, commandRequest.commandType, commandRequest.parameters);
+        if sendResult is tcp:Error {
+            http:InternalServerError internalServerError = {
+                body: {message: string `failed to send command to device ${deviceId}`}
+            };
+            return internalServerError;
+        }
+        boolean commandSent = sendResult;
+        if !commandSent {
+            DeviceOfflineResponse offlineResponse = {status: "device_offline"};
+            http:ServiceUnavailable serviceUnavailable = {
+                body: offlineResponse
+            };
+            return serviceUnavailable;
+        }
+        CommandSentResponse commandSentResponse = {commandSent: true, deviceId: deviceId};
+        return commandSentResponse;
     }
 }
