@@ -2,19 +2,60 @@ import ballerina/http;
 import ballerina/jwt;
 import ballerina/time;
 
+// Pulls the raw bearer token out of the Authorization header. The listener
+// has already verified this token's signature, issuer, audience, and expiry
+// before any resource runs; everything below only reads its payload.
+function extractBearerToken(http:Request request) returns string|error {
+    string authHeader = check request.getHeader("Authorization");
+    return authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
+}
+
 // Extracts the subject (sub) claim from the caller's bearer token so
 // approve/reject decisions can be attributed to the authenticated broker.
-// The listener has already verified the token's signature, issuer, audience,
-// and expiry before this resource executes; this only reads the payload.
 function getCallerSubject(http:Request request) returns string|error {
-    string authHeader = check request.getHeader("Authorization");
-    string token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
+    string token = check extractBearerToken(request);
     [jwt:Header, jwt:Payload] [_, payload] = check jwt:decode(token);
     string? subject = payload.sub;
     if subject is () {
         return "unknown-broker";
     }
     return subject;
+}
+
+// Enforces that the caller's token carries the required entitlement.
+// Our IdP publishes entitlements under a non-standard, flat claim
+// (idpScopeClaim, e.g. "entitlements") rather than the OAuth2-standard
+// "scope" claim, as a space-delimited string of granted scope values.
+// Returns () when the caller is entitled, or a Forbidden response in our
+// standard error body shape otherwise - callers must check the result and
+// return it immediately when it is not ().
+function requireScope(http:Request request, string requiredScope) returns http:Forbidden? {
+    string|error token = extractBearerToken(request);
+    if token is error {
+        ErrorDetail forbiddenDetail = {message: "Missing or invalid bearer token"};
+        return <http:Forbidden>{body: forbiddenDetail};
+    }
+    [jwt:Header, jwt:Payload]|jwt:Error decoded = jwt:decode(token);
+    if decoded is jwt:Error {
+        ErrorDetail forbiddenDetail = {message: "Unable to read caller entitlements"};
+        return <http:Forbidden>{body: forbiddenDetail};
+    }
+    [jwt:Header, jwt:Payload] [_, payload] = decoded;
+    anydata scopeClaimValue = payload[idpScopeClaim];
+    string[] grantedScopes = [];
+    if scopeClaimValue is string {
+        grantedScopes = re `\s+`.split(scopeClaimValue.trim());
+    } else if scopeClaimValue is string[] {
+        grantedScopes = scopeClaimValue;
+    }
+    if grantedScopes.indexOf(requiredScope) is () {
+        ErrorDetail forbiddenDetail = {
+            message: "Caller is not entitled to perform this operation",
+            details: string `Missing required entitlement: ${requiredScope}`
+        };
+        return <http:Forbidden>{body: forbiddenDetail};
+    }
+    return ();
 }
 
 // In-memory claims store acting as the backing data source for the API.

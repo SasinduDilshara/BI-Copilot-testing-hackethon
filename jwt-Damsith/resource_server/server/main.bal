@@ -16,6 +16,12 @@ final http:JwtValidatorConfig idpJwtValidatorConfig = {
     issuer: idpRealmBaseUrl,
     audience: idpAudience,
     clockSkew: jwtClockSkewSeconds,
+    // Entitlements/scopes are read from idpScopeClaim, not the OAuth2-standard
+    // "scope" claim - our Keycloak realm publishes them under a custom claim
+    // name via a protocol mapper. Authorization itself is still enforced
+    // explicitly per resource (see requireScope) so a rejection always comes
+    // back in our standard error body instead of the framework default.
+    scopeKey: idpScopeClaim,
     signatureConfig: {
         jwksConfig: {
             url: string `${idpRealmBaseUrl}/protocol/openid-connect/certs`,
@@ -38,29 +44,35 @@ listener http:Listener claimsListener = new (servicePort);
 }
 service /claims on claimsListener {
 
-    // Low sensitivity: list all claims. Requires the claims:read scope.
+    // Low sensitivity: list all claims. Requires the claims:read entitlement.
     @http:ResourceConfig {
         auth: [
             {
-                jwtValidatorConfig: idpJwtValidatorConfig,
-                scopes: ["claims:read"]
+                jwtValidatorConfig: idpJwtValidatorConfig
             }
         ]
     }
-    resource function get .() returns ClaimSummary[]|http:Unauthorized|http:Forbidden {
+    resource function get .(http:Request request) returns ClaimSummary[]|http:Unauthorized|http:Forbidden {
+        http:Forbidden? forbidden = requireScope(request, "claims:read");
+        if forbidden is http:Forbidden {
+            return forbidden;
+        }
         return getAllClaimSummaries();
     }
 
-    // Low sensitivity: view a single claim's status. Requires the claims:read scope.
+    // Low sensitivity: view a single claim's status. Requires the claims:read entitlement.
     @http:ResourceConfig {
         auth: [
             {
-                jwtValidatorConfig: idpJwtValidatorConfig,
-                scopes: ["claims:read"]
+                jwtValidatorConfig: idpJwtValidatorConfig
             }
         ]
     }
-    resource function get [string claimId]() returns ClaimStatus|http:NotFound|http:Unauthorized|http:Forbidden {
+    resource function get [string claimId](http:Request request) returns ClaimStatus|http:NotFound|http:Unauthorized|http:Forbidden {
+        http:Forbidden? forbidden = requireScope(request, "claims:read");
+        if forbidden is http:Forbidden {
+            return forbidden;
+        }
         ClaimStatus? claim = getClaimById(claimId);
         if claim is () {
             ErrorDetail notFoundDetail = {message: string `Claim ${claimId} was not found`};
@@ -69,16 +81,19 @@ service /claims on claimsListener {
         return claim;
     }
 
-    // High sensitivity: approve a payout. Requires the elevated claims:approve scope.
+    // High sensitivity: approve a payout. Requires the elevated claims:approve entitlement.
     @http:ResourceConfig {
         auth: [
             {
-                jwtValidatorConfig: idpJwtValidatorConfig,
-                scopes: ["claims:approve"]
+                jwtValidatorConfig: idpJwtValidatorConfig
             }
         ]
     }
     resource function post [string claimId]/approve(http:Request request) returns ClaimDecision|http:NotFound|http:Unauthorized|http:Forbidden|error {
+        http:Forbidden? forbidden = requireScope(request, "claims:approve");
+        if forbidden is http:Forbidden {
+            return forbidden;
+        }
         string decidedBy = check getCallerSubject(request);
         ClaimDecision? decision = approveClaimById(claimId, decidedBy);
         if decision is () {
@@ -88,16 +103,19 @@ service /claims on claimsListener {
         return decision;
     }
 
-    // High sensitivity: reject a claim. Requires the elevated claims:approve scope.
+    // High sensitivity: reject a claim. Requires the elevated claims:approve entitlement.
     @http:ResourceConfig {
         auth: [
             {
-                jwtValidatorConfig: idpJwtValidatorConfig,
-                scopes: ["claims:approve"]
+                jwtValidatorConfig: idpJwtValidatorConfig
             }
         ]
     }
     resource function post [string claimId]/reject(http:Request request) returns ClaimDecision|http:NotFound|http:Unauthorized|http:Forbidden|error {
+        http:Forbidden? forbidden = requireScope(request, "claims:approve");
+        if forbidden is http:Forbidden {
+            return forbidden;
+        }
         string decidedBy = check getCallerSubject(request);
         ClaimDecision? decision = rejectClaimById(claimId, decidedBy);
         if decision is () {

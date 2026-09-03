@@ -14,6 +14,12 @@ configurable string idpBaseUrl = ?;
 configurable string idpRealm = ?;
 configurable string idpAudience = ?;
 
+// Name of the JWT claim that carries this caller's entitlements/scopes.
+// Our Keycloak realm publishes these under a non-standard, flat claim
+// (not the OAuth2-standard "scope" claim), via a custom protocol mapper.
+// This must match that mapper's claim name exactly.
+configurable string idpScopeClaim = "entitlements";
+
 // How long fetched JWKS keys are held in memory before Keycloak is called
 // again. This is the main lever against hammering the IdP: every inbound
 // request that hits an unpopulated/expired cache triggers a JWKS fetch, so a
