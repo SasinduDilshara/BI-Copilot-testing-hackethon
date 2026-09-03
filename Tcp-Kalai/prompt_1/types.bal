@@ -6,4 +6,5 @@ public type TradeMessage record {|
     int quantity;
     decimal price;
     string brokerId;
+    string riskStatus?;
 |};

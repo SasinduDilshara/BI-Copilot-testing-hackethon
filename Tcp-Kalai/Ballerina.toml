@@ -1,0 +1,3 @@
+[workspace]
+title = "tcp"
+packages = ["prompt_1"]

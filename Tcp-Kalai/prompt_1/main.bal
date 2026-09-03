@@ -57,6 +57,7 @@ service class TradeConnectionService {
             responseText = string `NACK${FIELD_SEPARATOR}${tradeMessage.tradeId}${FIELD_SEPARATOR}${validationResult.message()}`;
         } else {
             storeTrade(tradeMessage);
+            forwardTradeToRiskEngine(tradeMessage);
             responseText = string `ACK${FIELD_SEPARATOR}${tradeMessage.tradeId}`;
         }
 
