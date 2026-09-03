@@ -1,0 +1,3 @@
+JWT:prompt-1:v1
+
+We run a driver-tracking platform, and our mobile apps currently hit our backend with a static API key that every driver shares. We want to move to short-lived signed tokens issued by a small Ballerina service: a driver logs in against our existing credentials store, and we hand back a token their app can present to our downstream services for the rest of the shift. Downstream services need to know which driver it is, which depot they belong to, and what they're allowed to do, without calling us back. Build the issuing service. We already have a keystore from our PKI team.

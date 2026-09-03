@@ -1,0 +1,3 @@
+JWT:prompt-1:v4
+
+Before we ship this, walk me through — no code changes — what actually happens between jwt:issue returning a string and a verifier accepting it. Specifically: what does the library put in the header versus the payload without being asked, is expTime an absolute timestamp or a duration from now, and does the compiler catch anything if I put a claim into customClaims whose name collides with a registered claim, or does that only surface at runtime? Then tell me which of those fields are actually checked by default on the verifying side and which are ignored unless I ask for them

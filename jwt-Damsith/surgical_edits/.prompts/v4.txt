@@ -1,0 +1,3 @@
+JWT:prompt-3:v4
+
+Don't change anything for this one. In our current setup, explain what jwt:validate will and won't check if I leave signatureConfig out of the ValidatorConfig — does it fail closed, or does it just skip verification and return the payload? Same question for nbf: is it checked automatically, and what happens if a token arrives with no exp at all? And is there anything at compile time that stops me passing a ValidatorConfig that can never succeed, or do I only find out in production? Point me at where in the module this is actually decided.
