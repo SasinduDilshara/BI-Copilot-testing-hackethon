@@ -3,6 +3,7 @@ import ballerina/log;
 import ballerina/tcp;
 
 configurable int tcpListenerPort = 5140;
+configurable decimal logClientTimeout = 5.0;
 
 service tcp:Service on new tcp:Listener(tcpListenerPort) {
 
@@ -53,4 +54,23 @@ service class LogConnectionService {
             log:printInfo("tcp connection closed", event = "log_stream_closed");
         }
     }
+}
+
+// Ships a single log entry to the TCP log aggregation server running on
+// localhost:5140 and waits for the OK acknowledgement.
+function shipLogEntry(LogEntry logEntry) returns error? {
+    tcp:Client logShipperClient = check new ("localhost", tcpListenerPort, timeout = logClientTimeout);
+
+    string logLine = value:toJsonString(logEntry);
+    byte[] logLineBytes = logLine.toBytes();
+
+    check logShipperClient->writeBytes(logLineBytes);
+    byte[] & readonly acknowledgement = check logShipperClient->readBytes();
+
+    string|error acknowledgementText = string:fromBytes(acknowledgement);
+    if acknowledgementText is string {
+        log:printInfo("received acknowledgement from log server", acknowledgement = acknowledgementText);
+    }
+
+    check logShipperClient->close();
 }
