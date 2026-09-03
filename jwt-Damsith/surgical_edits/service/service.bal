@@ -3,26 +3,15 @@ import ballerina/jwt;
 
 listener http:Listener claimsListener = new (servicePort);
 
-// Validator configuration for bearer tokens minted by the broker portal's
-// identity provider. Signature verification is done against the IdP's own
-// certificate, so a token cannot be trusted unless the IdP actually signed
-// it - crafting a plausible-looking payload is not enough to pass this.
-final jwt:ValidatorConfig tokenValidatorConfig = {
-    issuer: idpTokenIssuer,
-    audience: idpTokenAudience,
-    clockSkew: 60,
-    signatureConfig: {
-        certFile: idpCertPath
-    }
-};
-
-// Verifies the inbound bearer token against the identity provider's
-// certificate and expected issuer/audience before trusting anything inside
-// it, then reads the caller identity off the validated sub claim.
+// Reads the caller identity off a bearer token that the listener has
+// already authenticated. By the time a resource runs, @http:ServiceConfig's
+// auth declaration below has verified the token's signature against the
+// identity provider's certificate and checked issuer/audience, so all that
+// is left to do here is pull the sub claim back out.
 function getCallerIdentity(http:Request request) returns string|error {
     string authHeader = check request.getHeader("Authorization");
     string token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
-    jwt:Payload payload = check jwt:validate(token, tokenValidatorConfig);
+    [jwt:Header, jwt:Payload] [_, payload] = check jwt:decode(token);
     string? subject = payload.sub;
     if subject is () {
         return error("bearer token carries no sub claim");
@@ -30,6 +19,25 @@ function getCallerIdentity(http:Request request) returns string|error {
     return subject;
 }
 
+// Authentication is declared here, not hand-rolled, so the platform's static
+// scanner can read it without executing anything. The listener verifies the
+// token's signature against the identity provider's certificate and checks
+// issuer/audience before a request is ever dispatched to a resource -
+// requests that fail this are rejected by the listener itself.
+@http:ServiceConfig {
+    auth: [
+        {
+            jwtValidatorConfig: {
+                issuer: idpTokenIssuer,
+                audience: idpTokenAudience,
+                clockSkew: 60,
+                signatureConfig: {
+                    certFile: idpCertPath
+                }
+            }
+        }
+    ]
+}
 service /claims on claimsListener {
 
     // Accepts a claim from a broker and pushes it on to the partner network.
