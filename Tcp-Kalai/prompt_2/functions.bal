@@ -17,6 +17,10 @@ service /logs on new http:Listener(httpListenerPort) {
     resource function get services() returns string[] {
         return getServiceIds();
     }
+
+    resource function get connections/active() returns ConnectionInfo[] {
+        return getActiveConnections();
+    }
 }
 
 service /ship on new http:Listener(logShipperListenerPort) {

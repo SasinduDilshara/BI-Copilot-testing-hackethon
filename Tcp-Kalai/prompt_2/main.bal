@@ -1,6 +1,7 @@
 import ballerina/lang.value;
 import ballerina/log;
 import ballerina/tcp;
+import ballerina/time;
 
 configurable int tcpListenerPort = 5140;
 configurable decimal logClientTimeout = 5.0;
@@ -9,14 +10,30 @@ service tcp:Service on new tcp:Listener(tcpListenerPort) {
 
     remote function onConnect(tcp:Caller caller) returns tcp:ConnectionService {
         log:printInfo("client connected", remotePort = caller.remotePort);
-        return new LogConnectionService();
+
+        string connectionId = string:'join(":", caller.remoteHost, caller.remotePort.toString());
+        string connectedAt = time:utcToString(time:utcNow());
+        ConnectionInfo connectionInfo = {
+            serviceId: "",
+            remoteHost: caller.remoteHost,
+            connectedAt: connectedAt,
+            totalLinesReceived: 0
+        };
+        registerConnection(connectionId, connectionInfo);
+
+        return new LogConnectionService(connectionId);
     }
 }
 
 service class LogConnectionService {
     *tcp:ConnectionService;
 
+    private final string connectionId;
     private string? serviceId = ();
+
+    function init(string connectionId) {
+        self.connectionId = connectionId;
+    }
 
     remote function onBytes(readonly & byte[] data) returns byte[]|tcp:Error? {
         string|error logLine = string:fromBytes(data);
@@ -33,12 +50,14 @@ service class LogConnectionService {
 
         self.serviceId = logEntry.serviceId;
         addLogEntry(logEntry);
+        recordConnectionLogLine(self.connectionId, logEntry.serviceId);
 
         return "OK\n".toBytes();
     }
 
     remote function onError(tcp:Error err) returns tcp:Error? {
         string? serviceId = self.serviceId;
+        deregisterConnection(self.connectionId);
         if serviceId is string {
             log:printError("tcp connection error", event = "log_stream_error", serviceId = serviceId, 'error = err);
         } else {
@@ -48,6 +67,7 @@ service class LogConnectionService {
 
     remote function onClose() returns tcp:Error? {
         string? serviceId = self.serviceId;
+        deregisterConnection(self.connectionId);
         if serviceId is string {
             log:printInfo("tcp connection closed", event = "log_stream_closed", serviceId = serviceId);
         } else {

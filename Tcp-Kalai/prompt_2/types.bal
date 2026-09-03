@@ -8,3 +8,11 @@ type LogEntry record {|
     string message;
     string timestamp;
 |};
+
+// Tracks metadata about an active TCP log shipping connection.
+type ConnectionInfo record {|
+    string serviceId;
+    string remoteHost;
+    string connectedAt;
+    int totalLinesReceived;
+|};
