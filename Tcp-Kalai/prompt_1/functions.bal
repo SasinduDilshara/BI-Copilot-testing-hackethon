@@ -1,5 +1,51 @@
+import ballerina/file;
 import ballerina/log;
 import ballerina/tcp;
+
+// Checks whether the given file path exists on the local file system.
+function tlsFileExists(string path) returns boolean {
+    boolean|file:Error result = file:test(path, file:EXISTS);
+    if result is file:Error {
+        return false;
+    }
+    return result;
+}
+
+// Builds the listener secure socket configuration if the cert and key files are present.
+// Falls back to () (plain TCP) and logs a warning when the TLS files are missing.
+function buildListenerSecureSocket() returns tcp:ListenerSecureSocket? {
+    boolean certExists = tlsFileExists(certFile);
+    boolean keyExists = tlsFileExists(keyFile);
+    if !certExists || !keyExists {
+        log:printWarn("TLS certificate or key file not found, falling back to plain TCP listener",
+                event = "tls_disabled", certFile = certFile, keyFile = keyFile);
+        return ();
+    }
+
+    tcp:ListenerSecureSocket listenerSecureSocket = {
+        key: {
+            certFile,
+            keyFile
+        }
+    };
+    return listenerSecureSocket;
+}
+
+// Builds the client secure socket configuration if the trust store file is present.
+// Falls back to () (plain TCP) and logs a warning when the TLS file is missing.
+function buildClientSecureSocket() returns tcp:ClientSecureSocket? {
+    boolean trustStoreExists = tlsFileExists(trustStoreFile);
+    if !trustStoreExists {
+        log:printWarn("TLS trust store file not found, falling back to plain TCP client",
+                event = "tls_disabled", trustStoreFile = trustStoreFile);
+        return ();
+    }
+
+    tcp:ClientSecureSocket clientSecureSocket = {
+        cert: trustStoreFile
+    };
+    return clientSecureSocket;
+}
 
 // Parses a pipe-delimited trade message string into a TradeMessage record.
 // Format: tradeId|symbol|side|quantity|price|brokerId
@@ -67,7 +113,13 @@ function serializeTradeMessage(TradeMessage tradeMessage) returns string {
 // Forwards a validated trade to the downstream risk management system and records its risk status.
 // Connection failures are logged and do not propagate, so the broker ACK is never blocked.
 function forwardTradeToRiskEngine(TradeMessage tradeMessage) {
-    tcp:Client|tcp:Error riskEngineClient = new (riskEngineHost, riskEnginePort);
+    tcp:ClientSecureSocket? clientSecureSocket = buildClientSecureSocket();
+    tcp:Client|tcp:Error riskEngineClient;
+    if clientSecureSocket is tcp:ClientSecureSocket {
+        riskEngineClient = new (riskEngineHost, riskEnginePort, secureSocket = clientSecureSocket);
+    } else {
+        riskEngineClient = new (riskEngineHost, riskEnginePort);
+    }
     if riskEngineClient is tcp:Error {
         log:printError("failed to connect to risk engine", 'error = riskEngineClient, tradeId = tradeMessage.tradeId);
         return;

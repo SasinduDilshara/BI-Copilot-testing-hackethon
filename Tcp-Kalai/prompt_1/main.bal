@@ -21,7 +21,9 @@ service /trades on new http:Listener(9001) {
     }
 }
 
-service tcp:Service on new tcp:Listener(9090) {
+tcp:ListenerSecureSocket? tradeListenerSecureSocket = buildListenerSecureSocket();
+
+service tcp:Service on new tcp:Listener(9090, config = tradeListenerSecureSocket is tcp:ListenerSecureSocket ? {secureSocket: tradeListenerSecureSocket} : {}) {
 
     remote function onConnect(tcp:Caller caller) returns tcp:ConnectionService {
         log:printInfo("client connected", remoteHost = caller.remotePort);
