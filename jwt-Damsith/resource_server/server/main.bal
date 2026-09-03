@@ -1,16 +1,23 @@
 import ballerina/http;
 
+// Keycloak's realm base issuer, per the current realm path layout
+// (/realms/{realm-name}/...) documented at
+// https://www.keycloak.org/securing-apps/oidc-layers (Keycloak 26.7.x).
+final string idpRealmBaseUrl = string `${idpBaseUrl}/realms/${idpRealm}`;
+
 // JWT validator configuration shared by every resource. The signing keys are
-// never bundled with the build — they are fetched live from the corporate
-// IdP's JWKS endpoint (and cached in memory) so key rotation on the IdP side
-// is picked up automatically without redeploying this service.
+// never bundled with the build — they are fetched live from Keycloak's realm
+// certificate (JWKS) endpoint and cached in memory, so key rotation on the
+// Keycloak side (old key goes passive, new key becomes active) is picked up
+// automatically: the validator matches the token's "kid" against whatever
+// keys are currently published, without redeploying this service.
 final http:JwtValidatorConfig idpJwtValidatorConfig = {
-    issuer: idpIssuer,
+    issuer: idpRealmBaseUrl,
     audience: idpAudience,
     clockSkew: 60,
     signatureConfig: {
         jwksConfig: {
-            url: idpJwksUrl
+            url: string `${idpRealmBaseUrl}/protocol/openid-connect/certs`
         }
     }
 };
