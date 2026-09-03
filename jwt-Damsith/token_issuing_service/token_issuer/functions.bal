@@ -16,6 +16,7 @@ function issueDriverToken(DriverAuthResult driverAuthResult) returns string|jwt:
         username: driverAuthResult.driverId,
         audience: tokenAudience,
         expTime: tokenExpiryInSeconds,
+        keyId: keystoreKeyAlias,
         customClaims: {
             driverId: driverAuthResult.driverId,
             depotId: driverAuthResult.depotId,

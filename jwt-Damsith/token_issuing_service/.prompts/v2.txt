@@ -1,0 +1,3 @@
+JWT:prompt-1:v2
+
+Our PKI team rotates the signing key every 90 days and they've asked that tokens carry enough information for a verifier to work out which key signed them — right now nothing in the token says that, so during the overlap window verifiers can't pick the right public key. Add that. Also, the keystore path, alias and password are sitting in the source; staging and production use different keystores and our security team will not sign this off as it stands. Move them out.
