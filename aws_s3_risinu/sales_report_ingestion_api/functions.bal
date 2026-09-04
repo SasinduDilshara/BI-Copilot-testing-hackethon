@@ -1,0 +1,223 @@
+import ballerina/http;
+import ballerina/log;
+import ballerinax/aws.s3;
+
+const string GENERIC_STORAGE_ERROR_MESSAGE = "The report storage service is currently unavailable. Please try again later.";
+const string INVALID_PAYLOAD_MESSAGE = "The uploaded report could not be read as CSV text.";
+const string REPORT_TOO_LARGE_MESSAGE = "The report is too large to process.";
+const string PROCESSED_KEY_PREFIX = "processed/";
+const string ARCHIVE_KEY_PREFIX = "archive/";
+
+# Builds the S3 object key for a given report date.
+#
+# + reportDate - the report date, e.g. 2026-09-01
+# + return - the corresponding S3 object key
+function buildReportObjectKey(string reportDate) returns string => string `${reportDate}.csv`;
+
+# Builds the S3 object key for the processed copy of a given report date.
+#
+# + reportDate - the report date, e.g. 2026-09-01
+# + return - the corresponding processed-area S3 object key
+function buildProcessedObjectKey(string reportDate) returns string => PROCESSED_KEY_PREFIX + buildReportObjectKey(reportDate);
+
+# Builds the S3 object key for the archived copy of a given report date.
+#
+# + reportDate - the report date, e.g. 2026-09-01
+# + return - the corresponding archive-area S3 object key
+function buildArchiveObjectKey(string reportDate) returns string => ARCHIVE_KEY_PREFIX + buildReportObjectKey(reportDate);
+
+# Handles uploading a CSV report for the given date.
+#
+# + reportDate - the report date
+# + request - the inbound request carrying the CSV payload
+# + return - the created report summary, a bad request, or a generic server error
+function handleUploadReport(string reportDate, http:Request request) returns ReportSummary|http:BadRequest|http:InternalServerError {
+    string|http:ClientError csvContent = request.getTextPayload();
+    if csvContent is http:ClientError {
+        log:printError("Failed to read the report payload as text", 'error = csvContent, reportDate = reportDate);
+        return <http:BadRequest>{body: {message: INVALID_PAYLOAD_MESSAGE}};
+    }
+
+    string objectKey = buildReportObjectKey(reportDate);
+    s3:Error? putResult = s3Client->putObject(bucketName, objectKey, csvContent, contentType = "text/csv", fileFormat = s3:CSV);
+    if putResult is s3:Error {
+        log:printError("Failed to upload report to S3", 'error = putResult, objectKey = objectKey);
+        return <http:InternalServerError>{body: {message: GENERIC_STORAGE_ERROR_MESSAGE}};
+    }
+
+    return {
+        date: reportDate,
+        sizeInBytes: csvContent.toBytes().length(),
+        lastModified: ""
+    };
+}
+
+# Handles listing the sales reports currently held in the bucket.
+#
+# + return - the list of report summaries, or a generic server error
+function handleListReports() returns ReportListResponse|http:InternalServerError {
+    s3:ListObjectsResponse|s3:Error listResult = s3Client->listObjects(bucketName);
+    if listResult is s3:Error {
+        log:printError("Failed to list reports from S3", 'error = listResult);
+        return <http:InternalServerError>{body: {message: GENERIC_STORAGE_ERROR_MESSAGE}};
+    }
+
+    ReportSummary[] reports = from s3:S3Object s3Object in listResult.objects
+        select {
+            date: extractReportDate(s3Object.key),
+            sizeInBytes: s3Object.size,
+            lastModified: s3Object.lastModified
+        };
+
+    return {reports};
+}
+
+# Extracts the report date from an S3 object key by stripping the .csv suffix.
+#
+# + objectKey - the S3 object key
+# + return - the report date portion of the key
+function extractReportDate(string objectKey) returns string {
+    if objectKey.endsWith(".csv") {
+        return objectKey.substring(0, objectKey.length() - 4);
+    }
+    return objectKey;
+}
+
+# Handles fetching a single sales report and converting its content to JSON.
+#
+# + reportDate - the report date
+# + return - the report content as JSON, a not found, or a generic server error
+function handleGetReport(string reportDate) returns ReportContentResponse|http:NotFound|http:InternalServerError {
+    string objectKey = buildReportObjectKey(reportDate);
+
+    boolean|s3:Error existsResult = s3Client->doesObjectExist(bucketName, objectKey);
+    if existsResult is s3:Error {
+        log:printError("Failed to check report existence in S3", 'error = existsResult, objectKey = objectKey);
+        return <http:InternalServerError>{body: {message: GENERIC_STORAGE_ERROR_MESSAGE}};
+    }
+    if !existsResult {
+        return <http:NotFound>{body: {message: string `No report found for date ${reportDate}.`}};
+    }
+
+    string|s3:Error getResult = s3Client->getObject(bucketName, objectKey, targetType = string);
+    if getResult is s3:Error {
+        log:printError("Failed to download report from S3", 'error = getResult, objectKey = objectKey);
+        return <http:InternalServerError>{body: {message: GENERIC_STORAGE_ERROR_MESSAGE}};
+    }
+
+    SalesReportRow[]|error rows = parseReportCsv(getResult);
+    if rows is error {
+        log:printError("Failed to parse report CSV content", 'error = rows, objectKey = objectKey);
+        return <http:InternalServerError>{body: {message: GENERIC_STORAGE_ERROR_MESSAGE}};
+    }
+
+    return {
+        date: reportDate,
+        rows
+    };
+}
+
+# Handles computing the daily summary for a report, and writes a cleaned-up copy of the report to the
+# processed area so downstream jobs can read the cleaned version instead of the raw upload.
+#
+# + reportDate - the report date
+# + return - the report summary, a not found, a payload too large, or a generic server error
+function handleGetReportSummary(string reportDate) returns ReportSummaryResponse|http:NotFound|http:PayloadTooLarge|http:InternalServerError {
+    string objectKey = buildReportObjectKey(reportDate);
+
+    boolean|s3:Error existsResult = s3Client->doesObjectExist(bucketName, objectKey);
+    if existsResult is s3:Error {
+        log:printError("Failed to check report existence in S3", 'error = existsResult, objectKey = objectKey);
+        return <http:InternalServerError>{body: {message: GENERIC_STORAGE_ERROR_MESSAGE}};
+    }
+    if !existsResult {
+        return <http:NotFound>{body: {message: string `No report found for date ${reportDate}.`}};
+    }
+
+    s3:ObjectMetadata|s3:Error metadataResult = s3Client->getObjectMetadata(bucketName, objectKey);
+    if metadataResult is s3:Error {
+        log:printError("Failed to fetch report metadata from S3", 'error = metadataResult, objectKey = objectKey);
+        return <http:InternalServerError>{body: {message: GENERIC_STORAGE_ERROR_MESSAGE}};
+    }
+    if metadataResult.contentLength > maxReportSizeInBytes {
+        log:printWarn("Report exceeds the configured size limit", objectKey = objectKey,
+                contentLength = metadataResult.contentLength, maxReportSizeInBytes = maxReportSizeInBytes);
+        return <http:PayloadTooLarge>{body: {message: REPORT_TOO_LARGE_MESSAGE}};
+    }
+
+    string|s3:Error getResult = s3Client->getObject(bucketName, objectKey, targetType = string);
+    if getResult is s3:Error {
+        log:printError("Failed to download report from S3", 'error = getResult, objectKey = objectKey);
+        return <http:InternalServerError>{body: {message: GENERIC_STORAGE_ERROR_MESSAGE}};
+    }
+
+    SalesReportRow[]|error rawRows = parseReportCsv(getResult);
+    if rawRows is error {
+        log:printError("Failed to parse report CSV content", 'error = rawRows, objectKey = objectKey);
+        return <http:InternalServerError>{body: {message: GENERIC_STORAGE_ERROR_MESSAGE}};
+    }
+
+    ValidSalesRow[] validRows = from SalesReportRow rawRow in rawRows
+        let ValidSalesRow? validRow = toValidSalesRow(rawRow)
+        where validRow is ValidSalesRow
+        select validRow;
+    int skippedRowCount = rawRows.length() - validRows.length();
+
+    ReportSummaryResponse summary = summarizeValidRows(reportDate, validRows, skippedRowCount);
+
+    string processedObjectKey = buildProcessedObjectKey(reportDate);
+    s3:Error? putResult = s3Client->putObject(bucketName, processedObjectKey, validRows, contentType = "text/csv", fileFormat = s3:CSV);
+    if putResult is s3:Error {
+        log:printError("Failed to write processed report to S3", 'error = putResult, objectKey = processedObjectKey);
+        return <http:InternalServerError>{body: {message: GENERIC_STORAGE_ERROR_MESSAGE}};
+    }
+
+    return summary;
+}
+
+# Handles archiving a report: moves it into a dated archive area and removes it from the incoming area,
+# so the same report cannot be processed twice. Safe to call more than once for the same date.
+#
+# On the second and subsequent calls for an already-archived report, this reports that fact rather than
+# failing. If the copy to the archive succeeds but the cleanup of the original fails, the caller is never
+# told the archive succeeded, and the original is only ever removed once a copy is confirmed to exist.
+#
+# + reportDate - the report date
+# + return - the archive outcome, a not found, or a generic server error
+function handleArchiveReport(string reportDate) returns ArchiveResponse|http:NotFound|http:InternalServerError {
+    string archiveObjectKey = buildArchiveObjectKey(reportDate);
+
+    boolean|s3:Error archiveExistsResult = s3Client->doesObjectExist(bucketName, archiveObjectKey);
+    if archiveExistsResult is s3:Error {
+        log:printError("Failed to check archive existence in S3", 'error = archiveExistsResult, objectKey = archiveObjectKey);
+        return <http:InternalServerError>{body: {message: GENERIC_STORAGE_ERROR_MESSAGE}};
+    }
+    if archiveExistsResult {
+        return {date: reportDate, alreadyArchived: true};
+    }
+
+    string objectKey = buildReportObjectKey(reportDate);
+    boolean|s3:Error existsResult = s3Client->doesObjectExist(bucketName, objectKey);
+    if existsResult is s3:Error {
+        log:printError("Failed to check report existence in S3", 'error = existsResult, objectKey = objectKey);
+        return <http:InternalServerError>{body: {message: GENERIC_STORAGE_ERROR_MESSAGE}};
+    }
+    if !existsResult {
+        return <http:NotFound>{body: {message: string `No report found for date ${reportDate}.`}};
+    }
+
+    s3:Error? copyResult = s3Client->copyObject(bucketName, objectKey, bucketName, archiveObjectKey);
+    if copyResult is s3:Error {
+        log:printError("Failed to copy report to archive in S3", 'error = copyResult, objectKey = objectKey);
+        return <http:InternalServerError>{body: {message: GENERIC_STORAGE_ERROR_MESSAGE}};
+    }
+
+    s3:Error? deleteResult = s3Client->deleteObject(bucketName, objectKey);
+    if deleteResult is s3:Error {
+        log:printError("Report was copied to the archive but removing the original failed; a copy still " +
+                "exists in the archive area and the original remains in place", 'error = deleteResult, objectKey = objectKey);
+        return <http:InternalServerError>{body: {message: GENERIC_STORAGE_ERROR_MESSAGE}};
+    }
+
+    return {date: reportDate, alreadyArchived: false};
+}
