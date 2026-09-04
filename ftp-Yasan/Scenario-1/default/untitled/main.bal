@@ -15,29 +15,53 @@ public function main() returns error? {
     }
 }
 
-// Downloads, validates, summarizes, uploads the summary, and archives a single order file.
+// Streams, validates, summarizes, uploads the summary, and archives a single order file.
+// Rows are consumed one at a time from the module's own CSV stream, keeping only the running
+// aggregate (order count, per-sku quantity map, grand total) in memory rather than a full list.
 // Any file with a malformed or business-rule-invalid row is moved to /error instead of being
 // left in /outgoing, so it is not repeatedly re-downloaded and re-processed on every run.
 function processOrderFile(string fileName) returns error? {
     string sourcePath = string `${OUTGOING_DIR}/${fileName}`;
 
-    OrderLine[]|ftp:Error csvBindResult = sftpClient->getCsv(sourcePath);
-    if csvBindResult is ftp:Error {
-        int malformedLine = check locateMalformedLine(sourcePath);
-        log:printError(string `Malformed row in file ${fileName} at line ${malformedLine}`, 'error = csvBindResult);
+    stream<OrderLine, error?> orderLineStream = check sftpClient->getCsvAsStream(sourcePath, OrderLine);
+    OrderFileAggregate aggregate = {};
+    int rowsConsumed = 0;
+    boolean fileValid = true;
+
+    while true {
+        record {|OrderLine value;|}|error? nextRow = orderLineStream.next();
+
+        if nextRow is error {
+            int malformedLine = rowsConsumed + 2;
+            log:printError(string `Malformed row in file ${fileName} at line ${malformedLine}`, 'error = nextRow);
+            fileValid = false;
+            break;
+        }
+
+        if nextRow is () {
+            break;
+        }
+
+        rowsConsumed += 1;
+        OrderLine orderLine = nextRow.value;
+        if !isValidOrderLine(orderLine) {
+            int invalidLine = rowsConsumed + 1;
+            log:printError(string `Invalid order line in file ${fileName} at line ${invalidLine}: ${orderLine.toString()}`);
+            fileValid = false;
+            break;
+        }
+
+        accumulateOrderLine(aggregate, orderLine);
+    }
+    check orderLineStream.close();
+
+    if !fileValid {
+        log:printWarn(string `Moving file ${fileName} to ${ERROR_DIR} due to a malformed or invalid line`);
         check moveToErrorDirectory(sourcePath, fileName);
         return;
     }
 
-    OrderLine[] orderLines = csvBindResult;
-    FileValidationResult validationResult = validateOrderFile(fileName, orderLines);
-    if !validationResult.valid {
-        log:printWarn(string `Moving file ${fileName} to ${ERROR_DIR} due to invalid line(s)`);
-        check moveToErrorDirectory(sourcePath, fileName);
-        return;
-    }
-
-    OrderFileSummary summary = buildOrderFileSummary(validationResult.lines);
+    OrderFileSummary summary = toOrderFileSummary(aggregate);
     string summaryPath = string `${PROCESSED_DIR}/${fileName}.summary.json`;
     check sftpClient->putJson(summaryPath, summary, ftp:OVERWRITE);
 
@@ -45,12 +69,6 @@ function processOrderFile(string fileName) returns error? {
     check sftpClient->move(sourcePath, archivePath);
 
     log:printInfo(string `Processed file ${fileName}: ${summary.orderCount} order(s), grand total ${summary.grandTotal.toString()}`);
-}
-
-// Re-reads the file as raw rows to identify which line failed to bind into an OrderLine.
-function locateMalformedLine(string sourcePath) returns int|error {
-    string[][] rawRows = check sftpClient->getCsv(sourcePath);
-    return findMalformedLine(rawRows);
 }
 
 // Moves a file from /outgoing to /error on the server.

@@ -15,10 +15,12 @@ public type OrderLine record {|
     decimal unitPrice;
 |};
 
-// Result of validating a single order file.
-type FileValidationResult record {|
-    boolean valid;
-    OrderLine[] lines;
+// Running aggregate accumulated while streaming through an order file's rows, one at a time.
+// Only these totals are kept in memory; individual order lines are never materialized into a list.
+type OrderFileAggregate record {|
+    int orderCount = 0;
+    map<int> quantityBySku = {};
+    decimal grandTotal = 0d;
 |};
 
 // Per-file summary written back to the server as JSON.
