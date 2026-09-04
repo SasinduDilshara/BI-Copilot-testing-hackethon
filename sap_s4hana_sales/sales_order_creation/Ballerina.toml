@@ -1,0 +1,9 @@
+[package]
+org = "dilanperera"
+name = "sales_order_creation"
+version = "0.1.0"
+distribution = "2201.13.6"
+title = "Sales Order Creation"
+
+[build-options]
+sticky = true

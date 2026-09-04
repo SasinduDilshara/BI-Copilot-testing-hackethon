@@ -1,0 +1,3 @@
+[workspace]
+title = "sap-s4hana-sales"
+packages = ["sales_order_creation"]
