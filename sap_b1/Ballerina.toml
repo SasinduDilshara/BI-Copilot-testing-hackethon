@@ -1,0 +1,3 @@
+[workspace]
+title = "sap-b1"
+packages = ["low_stock_reorder", "mock-sap-b1"]
