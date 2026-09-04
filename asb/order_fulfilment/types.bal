@@ -6,6 +6,7 @@ public type FulfilmentCommand record {|
     string customerId;
     FulfilmentItem[] items;
     string requestedAt;
+    string region?;
 |};
 
 public type FulfilmentItem record {|
@@ -40,4 +41,16 @@ public type FulfilmentCommandAcceptedResponse record {|
 public type FulfilmentCommandErrorResponse record {|
     *http:InternalServerError;
     FulfilmentCommandError body;
+|};
+
+// Health counters tracking how fulfilment commands were settled.
+public type HealthCounters record {|
+    int completedCount;
+    int deadLetteredCount;
+    int abandonedCount;
+|};
+
+public type HealthCountersResponse record {|
+    *http:Ok;
+    HealthCounters body;
 |};

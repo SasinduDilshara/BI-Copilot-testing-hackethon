@@ -24,4 +24,12 @@ service /orders on new http:Listener(httpPort) {
         };
         return acceptedResponse;
     }
+
+    resource function get health() returns HealthCountersResponse {
+        HealthCounters counters = getHealthCounters();
+        HealthCountersResponse healthResponse = {
+            body: counters
+        };
+        return healthResponse;
+    }
 }

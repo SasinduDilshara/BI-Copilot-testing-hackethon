@@ -18,9 +18,19 @@ final asb:MessageSender orderStatusSender = check new ({
 });
 
 // Listener that receives fulfilment commands from the orders-to-fulfil queue.
+// autoComplete is disabled so that each message is explicitly completed, abandoned,
+// or dead-lettered based on the outcome of processing.
 listener asb:Listener orderCommandListener = check new (
     connectionString = connectionString,
     entityConfig = {
         queueName: ordersToFulfilQueue
-    }
+    },
+    autoComplete = false
 );
+
+// Tracks how fulfilment commands have been settled (completed, dead-lettered, or abandoned).
+isolated HealthCounters healthCounters = {
+    completedCount: 0,
+    deadLetteredCount: 0,
+    abandonedCount: 0
+};
