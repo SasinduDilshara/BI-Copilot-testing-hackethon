@@ -79,12 +79,27 @@ public isolated function parseTemperatureReading(byte[] payload) returns Tempera
     return reading;
 }
 
-# Determines whether a temperature reading breaches the configured cold-chain threshold.
+# Resolves the configured cold-chain temperature threshold for a given cargo.
+# Rejects the lookup if the cargo has no configured threshold.
+#
+# + cargoId - The cargo identifier
+# + return - The configured threshold in Celsius, or an error if the cargo is unconfigured
+public isolated function resolveCargoThreshold(string cargoId) returns decimal|error {
+    lock {
+        if !cargoThresholds.hasKey(cargoId) {
+            return error(string `Unconfigured cargo: no temperature threshold is configured for cargoId '${cargoId}'`);
+        }
+        return cargoThresholds.get(cargoId);
+    }
+}
+
+# Determines whether a temperature reading breaches the given cold-chain threshold.
 #
 # + reading - The parsed temperature reading
-# + return - true if the reading breaches the configured maximum allowed temperature
-public isolated function isThresholdBreach(TemperatureReading reading) returns boolean {
-    return reading.celsius > maxAllowedCelsius;
+# + thresholdCelsius - The configured threshold for the reading's cargo
+# + return - true if the reading breaches the given maximum allowed temperature
+public isolated function isThresholdBreach(TemperatureReading reading, decimal thresholdCelsius) returns boolean {
+    return reading.celsius > thresholdCelsius;
 }
 
 # Builds the alert topic for a given device.
@@ -98,12 +113,55 @@ public isolated function buildAlertTopic(string deviceId) returns string {
 # Builds a TemperatureAlert from a breaching temperature reading.
 #
 # + reading - The parsed temperature reading that breached the threshold
+# + thresholdCelsius - The configured threshold that was breached
 # + return - The constructed TemperatureAlert
-public isolated function buildTemperatureAlert(TemperatureReading reading) returns TemperatureAlert => {
+public isolated function buildTemperatureAlert(TemperatureReading reading, decimal thresholdCelsius) returns TemperatureAlert => {
     deviceId: reading.deviceId,
     cargoId: reading.cargoId,
     celsius: reading.celsius,
-    thresholdCelsius: maxAllowedCelsius,
+    thresholdCelsius: thresholdCelsius,
     recordedAt: reading.recordedAt,
-    message: string `Cargo ${reading.cargoId} on device ${reading.deviceId} recorded ${reading.celsius}C, exceeding the allowed maximum of ${maxAllowedCelsius}C`
+    message: string `Cargo ${reading.cargoId} on device ${reading.deviceId} recorded ${reading.celsius}C, exceeding the allowed maximum of ${thresholdCelsius}C`
+};
+
+# Parses and validates a raw MQTT payload into a typed DeviceCommand.
+# Rejects payloads that are not valid JSON, are missing required fields,
+# or specify an unsupported commandType.
+#
+# + payload - Raw MQTT message payload bytes
+# + return - The parsed DeviceCommand, or an error if the payload is malformed
+public isolated function parseDeviceCommand(byte[] payload) returns DeviceCommand|error {
+    string payloadText = check string:fromBytes(payload);
+    json payloadJson = check payloadText.fromJsonString();
+    DeviceCommand command = check payloadJson.cloneWithType(DeviceCommand);
+
+    string deviceId = command.deviceId;
+    if deviceId.trim().length() == 0 {
+        return error("Malformed device command: deviceId must be non-empty");
+    }
+
+    return command;
+}
+
+# Builds the response for a PING device command.
+#
+# + command - The parsed device command
+# + return - The constructed DeviceCommandResponse
+public isolated function buildPingResponse(DeviceCommand command) returns DeviceCommandResponse => {
+    deviceId: command.deviceId,
+    commandType: command.commandType,
+    status: "OK",
+    message: "PONG"
+};
+
+# Builds the response for a REPORT_STATUS device command, including the current device health snapshot.
+#
+# + command - The parsed device command
+# + health - The current device health snapshot
+# + return - The constructed DeviceCommandResponse
+public isolated function buildReportStatusResponse(DeviceCommand command, DeviceHealth health) returns DeviceCommandResponse => {
+    deviceId: command.deviceId,
+    commandType: command.commandType,
+    status: "OK",
+    health: health
 };

@@ -56,3 +56,17 @@ mqtt:ClientConfiguration deviceHealthClientConfig = {
 final mqtt:Client deviceHealthClient = check new (mqttBrokerUrl, mqttHealthClientId, deviceHealthClientConfig);
 
 final DeviceHealthCounters deviceHealthCounters = new;
+
+mqtt:ListenerConfiguration deviceCommandListenerConfig = {
+    connectionConfig: {
+        username: mqttUsername,
+        password: mqttPassword,
+        secureSocket: {
+            cert: mqttTrustedCertPath
+        }
+    },
+    manualAcks: true
+};
+
+listener mqtt:Listener deviceCommandListener = new (mqttBrokerUrl, mqttCommandsClientId,
+    {topic: deviceCommandsTopicFilter, qos: deviceCommandsSubscriptionQos}, deviceCommandListenerConfig);

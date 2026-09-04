@@ -12,6 +12,7 @@ final string testCargoId = "cargo-integration-1";
 
 isolated map<string> receivedAlertPayloads = {};
 isolated string? receivedHealthPayload = ();
+isolated map<mqtt:Message> receivedCommandResponses = {};
 
 mqtt:ClientConfiguration testPublisherConfig = {
     connectionConfig: {
@@ -44,6 +45,19 @@ service class HealthCaptureService {
         string payloadText = check string:fromBytes(message.payload);
         lock {
             receivedHealthPayload = payloadText;
+        }
+    }
+
+    remote function onError(mqtt:Error err) returns error? {
+    }
+}
+
+service class CommandResponseCaptureService {
+    *mqtt:Service;
+
+    remote function onMessage(mqtt:Message message, mqtt:Caller caller) returns error? {
+        lock {
+            receivedCommandResponses[testDeviceId] = message.clone();
         }
     }
 
@@ -162,4 +176,196 @@ function testRetainedDeviceHealthIsPublishedOnBroker() returns error? {
     }
 
     check healthListener.gracefulStop();
+}
+
+@test:Config {dependsOn: [testRetainedDeviceHealthIsPublishedOnBroker]}
+function testUnconfiguredCargoReadingDoesNotProduceAlert() returns error? {
+    string unconfiguredCargoDeviceId = "dev-integration-3";
+    string unconfiguredCargoId = "cargo-unconfigured-xyz";
+    lock {
+        string? _ = receivedAlertPayloads.removeIfHasKey(testDeviceId);
+    }
+
+    mqtt:Client publisherClient = check new (testMqttBrokerUrl, "test-temperature-publisher-3", testPublisherConfig);
+    string temperatureTopic = string `fleet/${unconfiguredCargoDeviceId}/temperature`;
+    string payload = string `{"deviceId":"${unconfiguredCargoDeviceId}","cargoId":"${unconfiguredCargoId}","celsius":25.0,"recordedAt":"2026-09-04T03:54:49Z"}`;
+    mqtt:DeliveryToken|mqtt:Error publishResult = publisherClient->publish(temperatureTopic, {
+        payload: payload.toBytes(),
+        qos: 1
+    });
+    test:assertTrue(publishResult is mqtt:DeliveryToken, msg = "Publishing the reading for an unconfigured cargo should still succeed at the transport level");
+
+    // Allow time to confirm no alert gets produced.
+    runtime:sleep(3);
+
+    string? capturedAlertPayload;
+    lock {
+        capturedAlertPayload = receivedAlertPayloads[testDeviceId];
+    }
+    test:assertTrue(capturedAlertPayload is (), msg = "Readings for unconfigured cargos must not result in a published alert");
+}
+
+@test:Config {dependsOn: [testUnconfiguredCargoReadingDoesNotProduceAlert]}
+function testPingCommandRespondsWithCorrelationDataPreserved() returns error? {
+    mqtt:ListenerConfiguration responseListenerConfig = {
+        connectionConfig: {
+            username: testMqttUsername,
+            password: testMqttPassword,
+            secureSocket: {
+                cert: testMqttTrustedCertPath
+            }
+        },
+        manualAcks: false
+    };
+    string responseTopic = string `fleet/${testDeviceId}/commands/response`;
+    mqtt:Listener responseListener = check new (testMqttBrokerUrl, "test-command-response-subscriber-1",
+            {topic: responseTopic, qos: 1}, responseListenerConfig);
+    check responseListener.attach(new CommandResponseCaptureService());
+    check responseListener.'start();
+
+    // Allow the subscription to establish before publishing.
+    runtime:sleep(2);
+
+    byte[] correlationData = "correlation-ping-1".toBytes();
+    mqtt:Client commandPublisherClient = check new (testMqttBrokerUrl, "test-command-publisher-1", testPublisherConfig);
+    string commandTopic = string `fleet/${testDeviceId}/commands`;
+    string commandPayload = string `{"commandType":"PING","deviceId":"${testDeviceId}"}`;
+    mqtt:DeliveryToken|mqtt:Error publishResult = commandPublisherClient->publish(commandTopic, {
+        payload: commandPayload.toBytes(),
+        qos: 1,
+        properties: {
+            responseTopic: responseTopic,
+            correlationData: correlationData
+        }
+    });
+    test:assertTrue(publishResult is mqtt:DeliveryToken, msg = "Publishing the PING command should succeed");
+
+    // Allow time for the service to process and respond.
+    runtime:sleep(3);
+
+    mqtt:Message? capturedResponse;
+    lock {
+        capturedResponse = receivedCommandResponses[testDeviceId].clone();
+    }
+    test:assertTrue(capturedResponse is mqtt:Message, msg = "A response should have been published for the PING command");
+
+    if capturedResponse is mqtt:Message {
+        string responsePayloadText = check string:fromBytes(capturedResponse.payload);
+        json responseJson = check responsePayloadText.fromJsonString();
+        DeviceCommandResponse response = check responseJson.cloneWithType(DeviceCommandResponse);
+        test:assertEquals(response.deviceId, testDeviceId, msg = "Response should reference the originating device");
+        test:assertEquals(response.commandType, "PING", msg = "Response should reflect the PING command type");
+        test:assertEquals(response.message, "PONG", msg = "PING response should carry a PONG message");
+
+        byte[]? responseCorrelationData = capturedResponse.properties?.correlationData;
+        test:assertEquals(responseCorrelationData, correlationData, msg = "Response should preserve the original correlation data");
+    }
+
+    check responseListener.gracefulStop();
+}
+
+@test:Config {dependsOn: [testPingCommandRespondsWithCorrelationDataPreserved]}
+function testReportStatusCommandRespondsWithHealthSnapshot() returns error? {
+    lock {
+        receivedCommandResponses.removeAll();
+    }
+
+    mqtt:ListenerConfiguration responseListenerConfig = {
+        connectionConfig: {
+            username: testMqttUsername,
+            password: testMqttPassword,
+            secureSocket: {
+                cert: testMqttTrustedCertPath
+            }
+        },
+        manualAcks: false
+    };
+    string responseTopic = string `fleet/${testDeviceId}/commands/response`;
+    mqtt:Listener responseListener = check new (testMqttBrokerUrl, "test-command-response-subscriber-2",
+            {topic: responseTopic, qos: 1}, responseListenerConfig);
+    check responseListener.attach(new CommandResponseCaptureService());
+    check responseListener.'start();
+
+    runtime:sleep(2);
+
+    byte[] correlationData = "correlation-report-status-1".toBytes();
+    mqtt:Client commandPublisherClient = check new (testMqttBrokerUrl, "test-command-publisher-2", testPublisherConfig);
+    string commandTopic = string `fleet/${testDeviceId}/commands`;
+    string commandPayload = string `{"commandType":"REPORT_STATUS","deviceId":"${testDeviceId}"}`;
+    mqtt:DeliveryToken|mqtt:Error publishResult = commandPublisherClient->publish(commandTopic, {
+        payload: commandPayload.toBytes(),
+        qos: 1,
+        properties: {
+            responseTopic: responseTopic,
+            correlationData: correlationData
+        }
+    });
+    test:assertTrue(publishResult is mqtt:DeliveryToken, msg = "Publishing the REPORT_STATUS command should succeed");
+
+    runtime:sleep(3);
+
+    mqtt:Message? capturedResponse;
+    lock {
+        capturedResponse = receivedCommandResponses[testDeviceId].clone();
+    }
+    test:assertTrue(capturedResponse is mqtt:Message, msg = "A response should have been published for the REPORT_STATUS command");
+
+    if capturedResponse is mqtt:Message {
+        string responsePayloadText = check string:fromBytes(capturedResponse.payload);
+        json responseJson = check responsePayloadText.fromJsonString();
+        DeviceCommandResponse response = check responseJson.cloneWithType(DeviceCommandResponse);
+        test:assertEquals(response.deviceId, testDeviceId, msg = "Response should reference the originating device");
+        test:assertEquals(response.commandType, "REPORT_STATUS", msg = "Response should reflect the REPORT_STATUS command type");
+        DeviceHealth? health = response.health;
+        test:assertTrue(health is DeviceHealth, msg = "REPORT_STATUS response should carry a device health snapshot");
+
+        byte[]? responseCorrelationData = capturedResponse.properties?.correlationData;
+        test:assertEquals(responseCorrelationData, correlationData, msg = "Response should preserve the original correlation data");
+    }
+
+    check responseListener.gracefulStop();
+}
+
+@test:Config {dependsOn: [testReportStatusCommandRespondsWithHealthSnapshot]}
+function testCommandMissingResponseTopicAndCorrelationDataGetsNoResponse() returns error? {
+    lock {
+        receivedCommandResponses.removeAll();
+    }
+
+    mqtt:ListenerConfiguration responseListenerConfig = {
+        connectionConfig: {
+            username: testMqttUsername,
+            password: testMqttPassword,
+            secureSocket: {
+                cert: testMqttTrustedCertPath
+            }
+        },
+        manualAcks: false
+    };
+    string responseTopic = string `fleet/${testDeviceId}/commands/response`;
+    mqtt:Listener responseListener = check new (testMqttBrokerUrl, "test-command-response-subscriber-3",
+            {topic: responseTopic, qos: 1}, responseListenerConfig);
+    check responseListener.attach(new CommandResponseCaptureService());
+    check responseListener.'start();
+
+    runtime:sleep(2);
+
+    mqtt:Client commandPublisherClient = check new (testMqttBrokerUrl, "test-command-publisher-3", testPublisherConfig);
+    string commandTopic = string `fleet/${testDeviceId}/commands`;
+    string commandPayload = string `{"commandType":"PING","deviceId":"${testDeviceId}"}`;
+    mqtt:DeliveryToken|mqtt:Error publishResult = commandPublisherClient->publish(commandTopic, {
+        payload: commandPayload.toBytes(),
+        qos: 1
+    });
+    test:assertTrue(publishResult is mqtt:DeliveryToken, msg = "Publishing the command without responseTopic/correlationData should still succeed at the transport level");
+
+    runtime:sleep(3);
+
+    mqtt:Message? capturedResponse;
+    lock {
+        capturedResponse = receivedCommandResponses[testDeviceId].clone();
+    }
+    test:assertTrue(capturedResponse is (), msg = "Commands missing responseTopic or correlationData must not receive a response");
+
+    check responseListener.gracefulStop();
 }

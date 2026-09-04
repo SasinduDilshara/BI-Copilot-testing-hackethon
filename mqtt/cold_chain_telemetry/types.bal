@@ -24,3 +24,21 @@ public type DeviceHealth record {|
     int breachesDetected;
     int alertsPublished;
 |};
+
+// Supported device command types received on the fleet commands topic.
+public type CommandType "PING"|"REPORT_STATUS";
+
+// Represents a typed device command received on the fleet/{deviceId}/commands topic.
+public type DeviceCommand record {|
+    CommandType commandType;
+    string deviceId;
+|};
+
+// Represents the response sent back for a processed device command.
+public type DeviceCommandResponse record {|
+    string deviceId;
+    CommandType commandType;
+    string status;
+    string message?;
+    DeviceHealth health?;
+|};

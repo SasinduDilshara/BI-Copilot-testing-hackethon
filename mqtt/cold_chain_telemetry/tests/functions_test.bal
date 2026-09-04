@@ -54,7 +54,7 @@ function testThresholdBreachDetected() {
         celsius: 12.0,
         recordedAt: "2026-09-04T03:54:49Z"
     };
-    test:assertTrue(isThresholdBreach(reading), msg = "Reading above max threshold should be a breach");
+    test:assertTrue(isThresholdBreach(reading, 8.0), msg = "Reading above max threshold should be a breach");
 }
 
 @test:Config {}
@@ -65,7 +65,7 @@ function testThresholdNotBreachedWithinLimit() {
         celsius: 4.0,
         recordedAt: "2026-09-04T03:54:49Z"
     };
-    test:assertFalse(isThresholdBreach(reading), msg = "Reading within max threshold should not be a breach");
+    test:assertFalse(isThresholdBreach(reading, 8.0), msg = "Reading within max threshold should not be a breach");
 }
 
 @test:Config {}
@@ -82,12 +82,12 @@ function testBuildTemperatureAlert() {
         celsius: 15.0,
         recordedAt: "2026-09-04T03:54:49Z"
     };
-    TemperatureAlert alert = buildTemperatureAlert(reading);
+    TemperatureAlert alert = buildTemperatureAlert(reading, 8.0);
 
     test:assertEquals(alert.deviceId, "dev-1", msg = "Alert should carry the device id");
     test:assertEquals(alert.cargoId, "cargo-1", msg = "Alert should carry the cargo id");
     test:assertEquals(alert.celsius, 15.0d, msg = "Alert should carry the recorded celsius value");
-    test:assertEquals(alert.thresholdCelsius, maxAllowedCelsius, msg = "Alert should carry the configured threshold");
+    test:assertEquals(alert.thresholdCelsius, 8.0d, msg = "Alert should carry the configured threshold");
 }
 
 @test:Config {}
@@ -155,4 +155,84 @@ function testHealthCountersTrackIndependently() {
     test:assertEquals(health.messagesRejected, 1, msg = "messagesRejected should be tracked independently");
     test:assertEquals(health.breachesDetected, 1, msg = "breachesDetected should be tracked independently");
     test:assertEquals(health.alertsPublished, 1, msg = "alertsPublished should be tracked independently");
+}
+
+@test:Config {}
+function testResolveCargoThresholdReturnsConfiguredValue() returns error? {
+    decimal thresholdCelsius = check resolveCargoThreshold("cargo-1");
+    test:assertEquals(thresholdCelsius, cargoThresholds.get("cargo-1"), msg = "Should resolve the configured threshold for a known cargo");
+}
+
+@test:Config {}
+function testResolveCargoThresholdRejectsUnconfiguredCargo() {
+    decimal|error thresholdCelsius = resolveCargoThreshold("unconfigured-cargo-xyz");
+    test:assertTrue(thresholdCelsius is error, msg = "Unconfigured cargos should be rejected");
+}
+
+@test:Config {}
+function testParseValidPingCommand() returns error? {
+    byte[] payload = string `{"commandType":"PING","deviceId":"dev-1"}`.toBytes();
+    DeviceCommand command = check parseDeviceCommand(payload);
+
+    test:assertEquals(command.commandType, "PING", msg = "commandType should be parsed correctly");
+    test:assertEquals(command.deviceId, "dev-1", msg = "deviceId should be parsed correctly");
+}
+
+@test:Config {}
+function testParseValidReportStatusCommand() returns error? {
+    byte[] payload = string `{"commandType":"REPORT_STATUS","deviceId":"dev-1"}`.toBytes();
+    DeviceCommand command = check parseDeviceCommand(payload);
+
+    test:assertEquals(command.commandType, "REPORT_STATUS", msg = "commandType should be parsed correctly");
+    test:assertEquals(command.deviceId, "dev-1", msg = "deviceId should be parsed correctly");
+}
+
+@test:Config {}
+function testParseCommandRejectsInvalidJson() {
+    byte[] payload = "not-json".toBytes();
+    DeviceCommand|error command = parseDeviceCommand(payload);
+    test:assertTrue(command is error, msg = "Non-JSON payload should be rejected");
+}
+
+@test:Config {}
+function testParseCommandRejectsUnsupportedCommandType() {
+    byte[] payload = string `{"commandType":"REBOOT","deviceId":"dev-1"}`.toBytes();
+    DeviceCommand|error command = parseDeviceCommand(payload);
+    test:assertTrue(command is error, msg = "Unsupported commandType should be rejected");
+}
+
+@test:Config {}
+function testParseCommandRejectsEmptyDeviceId() {
+    byte[] payload = string `{"commandType":"PING","deviceId":""}`.toBytes();
+    DeviceCommand|error command = parseDeviceCommand(payload);
+    test:assertTrue(command is error, msg = "Empty deviceId should be rejected");
+}
+
+@test:Config {}
+function testBuildPingResponse() {
+    DeviceCommand command = {commandType: "PING", deviceId: "dev-1"};
+    DeviceCommandResponse response = buildPingResponse(command);
+
+    test:assertEquals(response.deviceId, "dev-1", msg = "Response should carry the device id");
+    test:assertEquals(response.commandType, "PING", msg = "Response should carry the command type");
+    test:assertEquals(response.status, "OK", msg = "Response should report an OK status");
+    test:assertEquals(response.message, "PONG", msg = "PING response should carry a PONG message");
+}
+
+@test:Config {}
+function testBuildReportStatusResponse() {
+    DeviceCommand command = {commandType: "REPORT_STATUS", deviceId: "dev-1"};
+    DeviceHealth health = {
+        status: "online",
+        messagesReceived: 5,
+        messagesRejected: 1,
+        breachesDetected: 2,
+        alertsPublished: 2
+    };
+    DeviceCommandResponse response = buildReportStatusResponse(command, health);
+
+    test:assertEquals(response.deviceId, "dev-1", msg = "Response should carry the device id");
+    test:assertEquals(response.commandType, "REPORT_STATUS", msg = "Response should carry the command type");
+    test:assertEquals(response.status, "OK", msg = "Response should report an OK status");
+    test:assertEquals(response.health, health, msg = "REPORT_STATUS response should carry the device health snapshot");
 }
