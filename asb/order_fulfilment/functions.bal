@@ -7,6 +7,34 @@ function getCurrentTimestamp() returns string {
     return time:utcToString(time:utcNow());
 }
 
+// Submits a fulfilment command to the orders-to-fulfil queue. Commands whose requestedAt
+// is in the future are scheduled for delivery at that time using the Service Bus native
+// scheduling capability; commands requested for now or in the past are sent immediately.
+function submitFulfilmentCommand(FulfilmentCommand command) returns error? {
+    asb:Message commandMessage = {
+        body: command.toJson().toJsonString().toBytes(),
+        contentType: "application/json",
+        correlationId: command.orderId
+    };
+
+    time:Utc requestedAtUtc = check time:utcFromString(command.requestedAt);
+    time:Utc currentUtc = time:utcNow();
+    decimal secondsUntilRequestedAt = time:utcDiffSeconds(requestedAtUtc, currentUtc);
+
+    if secondsUntilRequestedAt > 0d {
+        time:Civil scheduledEnqueueTime = time:utcToCivil(requestedAtUtc);
+        int|asb:Error scheduleResult = orderCommandSender->schedule(commandMessage, scheduledEnqueueTime);
+        if scheduleResult is asb:Error {
+            return scheduleResult;
+        }
+        log:printInfo("Scheduled fulfilment command", orderId = command.orderId, requestedAt = command.requestedAt);
+        return;
+    }
+
+    check orderCommandSender->send(commandMessage);
+    log:printInfo("Submitted fulfilment command immediately", orderId = command.orderId);
+}
+
 // Parses the raw message body received from the Service Bus queue into a FulfilmentCommand.
 function parseFulfilmentCommand(anydata messageBody) returns FulfilmentCommand|error {
     if messageBody is byte[] {

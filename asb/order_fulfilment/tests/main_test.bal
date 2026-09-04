@@ -1,15 +1,16 @@
 import ballerina/http;
 import ballerina/lang.runtime;
 import ballerina/test;
+import ballerina/time;
 import ballerinax/asb;
 
 final http:Client testOrdersClient = check new (string `http://localhost:${httpPort}/orders`);
 
 // Polls the health endpoint until the given counter increases beyond its baseline value,
 // or the retry budget is exhausted.
-function waitForCounterIncrease(string counterName, int baselineValue) returns HealthCounters|error {
+function waitForCounterIncrease(string counterName, int baselineValue, int maxAttempts = 20) returns HealthCounters|error {
     int attempt = 0;
-    while attempt < 20 {
+    while attempt < maxAttempts {
         HealthCounters counters = check testOrdersClient->/health.get();
         int currentValue = counterName == "completed" ? counters.completedCount :
             counterName == "deadLettered" ? counters.deadLetteredCount : counters.abandonedCount;
@@ -22,6 +23,13 @@ function waitForCounterIncrease(string counterName, int baselineValue) returns H
     return error("Timed out waiting for " + counterName + " counter to increase");
 }
 
+// Returns an ISO 8601 timestamp a given number of seconds relative to now, used to build
+// immediate (past) or scheduled (future) requestedAt values regardless of when tests run.
+function timestampOffsetFromNow(decimal offsetSeconds) returns string {
+    time:Utc offsetUtc = time:utcAddSeconds(time:utcNow(), offsetSeconds);
+    return time:utcToString(offsetUtc);
+}
+
 @test:Config {}
 function testSubmitFulfilmentCommandAccepted() returns error? {
     FulfilmentCommand command = {
@@ -30,7 +38,7 @@ function testSubmitFulfilmentCommandAccepted() returns error? {
         items: [
             {sku: "SKU-1", quantity: 2}
         ],
-        requestedAt: "2026-09-03T12:00:00Z"
+        requestedAt: timestampOffsetFromNow(-3600d)
     };
 
     http:Response response = check testOrdersClient->/fulfilCommands.post(command);
@@ -69,7 +77,7 @@ function testValidateFulfilmentCommandAcceptsValidCommand() returns error? {
         items: [
             {sku: "SKU-3", quantity: 1}
         ],
-        requestedAt: "2026-09-03T14:00:00Z"
+        requestedAt: timestampOffsetFromNow(-3600d)
     };
 
     error? validationResult = validateFulfilmentCommand(validCommand);
@@ -84,7 +92,7 @@ function testValidateFulfilmentCommandRejectsInvalidCommand() returns error? {
         items: [
             {sku: "SKU-4", quantity: 0}
         ],
-        requestedAt: "2026-09-03T15:00:00Z"
+        requestedAt: timestampOffsetFromNow(-3600d)
     };
 
     error? validationResult = validateFulfilmentCommand(invalidCommand);
@@ -102,7 +110,7 @@ function testValidCommandIsCompletedAfterStatusPublication() returns error? {
         items: [
             {sku: "SKU-COMPLETE", quantity: 3}
         ],
-        requestedAt: "2026-09-04T09:00:00Z"
+        requestedAt: timestampOffsetFromNow(-60d)
     };
 
     http:Response response = check testOrdersClient->/fulfilCommands.post(validCommand);
@@ -123,7 +131,7 @@ function testInvalidCommandIsDeadLettered() returns error? {
         items: [
             {sku: "SKU-DEADLETTER", quantity: -1}
         ],
-        requestedAt: "2026-09-04T09:05:00Z"
+        requestedAt: timestampOffsetFromNow(-60d)
     };
 
     http:Response response = check testOrdersClient->/fulfilCommands.post(invalidCommand);
@@ -152,4 +160,54 @@ function testTransientPublishFailureTriggersAbandonPath() returns error? {
 
     asb:Error? sendResult = unreachableTopicSender->send(statusMessage);
     test:assertTrue(sendResult is asb:Error, msg = "Expected sending to a non-existent topic to fail transiently, triggering the abandon path");
+}
+
+// Submission path: a command whose requestedAt is in the past is submitted immediately
+// and is available for delivery straight away.
+@test:Config {}
+function testPastRequestedAtCommandIsSubmittedImmediately() returns error? {
+    HealthCounters baselineCounters = check testOrdersClient->/health.get();
+
+    FulfilmentCommand immediateCommand = {
+        orderId: "ORD-IMMEDIATE-1",
+        customerId: "CUST-IMMEDIATE",
+        items: [
+            {sku: "SKU-IMMEDIATE", quantity: 1}
+        ],
+        requestedAt: timestampOffsetFromNow(-60d)
+    };
+
+    error? submitResult = submitFulfilmentCommand(immediateCommand);
+    test:assertTrue(submitResult is (), msg = "Expected immediate submission to succeed");
+
+    HealthCounters updatedCounters = check waitForCounterIncrease("completed", baselineCounters.completedCount);
+    test:assertEquals(updatedCounters.completedCount, baselineCounters.completedCount + 1, msg = "Expected completedCount to increase by one shortly after immediate submission");
+}
+
+// Submission path: a command whose requestedAt is in the future is scheduled rather than
+// delivered immediately, so it must not be settled until its scheduled time arrives.
+@test:Config {}
+function testFutureRequestedAtCommandIsScheduledNotImmediate() returns error? {
+    HealthCounters baselineCounters = check testOrdersClient->/health.get();
+
+    FulfilmentCommand scheduledCommand = {
+        orderId: "ORD-SCHEDULED-1",
+        customerId: "CUST-SCHEDULED",
+        items: [
+            {sku: "SKU-SCHEDULED", quantity: 1}
+        ],
+        requestedAt: timestampOffsetFromNow(30d)
+    };
+
+    error? submitResult = submitFulfilmentCommand(scheduledCommand);
+    test:assertTrue(submitResult is (), msg = "Expected scheduling to succeed");
+
+    // The command should not be delivered/settled while its scheduled time is still ahead.
+    runtime:sleep(5);
+    HealthCounters countersBeforeScheduledTime = check testOrdersClient->/health.get();
+    test:assertEquals(countersBeforeScheduledTime.completedCount, baselineCounters.completedCount, msg = "Expected the scheduled command to not be completed before its scheduled time");
+
+    // Once the scheduled time has passed, the command should be delivered and completed.
+    HealthCounters updatedCounters = check waitForCounterIncrease("completed", baselineCounters.completedCount, maxAttempts = 60);
+    test:assertEquals(updatedCounters.completedCount, baselineCounters.completedCount + 1, msg = "Expected completedCount to increase by one after the scheduled time elapses");
 }
