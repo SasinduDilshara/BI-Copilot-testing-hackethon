@@ -277,3 +277,141 @@ function testMachineStateStoreReturnsNilForUnknownMachine() {
     MachineState? state = store.getState("plant-unknown", "machine-unknown");
     test:assertTrue(state is (), msg = "Unknown plant/machine combinations should have no recorded state");
 }
+
+@test:Config {}
+function testBuildDiagnosticRequestTopic() {
+    string topic = buildDiagnosticRequestTopic("plant-1", "machine-1");
+    test:assertEquals(topic, "plant/plant-1/machines/machine-1/diagnostics", msg = "Diagnostic request topic should be built with the plant and machine ids");
+}
+
+@test:Config {}
+function testBuildDiagnosticResponseTopic() {
+    string topic = buildDiagnosticResponseTopic("plant-1", "machine-1");
+    test:assertEquals(topic, "plant/plant-1/machines/machine-1/diagnostics/response", msg = "Diagnostic response topic should be built with the plant and machine ids");
+}
+
+@test:Config {}
+function testBuildDiagnosticRequest() {
+    MaintenanceAlert alert = {
+        plantId: "plant-1",
+        machineId: "machine-1",
+        sensorType: "vibration",
+        value: 15.0,
+        thresholdValue: 10.0,
+        recordedAt: "2026-09-04T03:54:49Z",
+        message: "some breach message"
+    };
+    DiagnosticRequest request = buildDiagnosticRequest(alert, "correlation-1");
+
+    test:assertEquals(request.plantId, "plant-1", msg = "Request should carry the plant id");
+    test:assertEquals(request.machineId, "machine-1", msg = "Request should carry the machine id");
+    test:assertEquals(request.sensorType, "vibration", msg = "Request should carry the sensor type");
+    test:assertEquals(request.correlationId, "correlation-1", msg = "Request should carry the given correlation id");
+}
+
+@test:Config {}
+function testParseValidDiagnosticResponse() returns error? {
+    byte[] payload = string `{"plantId":"plant-1","machineId":"machine-1","correlationId":"correlation-1","status":"OK","details":"all good"}`.toBytes();
+    DiagnosticResponse response = check parseDiagnosticResponse(payload);
+
+    test:assertEquals(response.plantId, "plant-1", msg = "plantId should be parsed correctly");
+    test:assertEquals(response.machineId, "machine-1", msg = "machineId should be parsed correctly");
+    test:assertEquals(response.correlationId, "correlation-1", msg = "correlationId should be parsed correctly");
+    test:assertEquals(response.status, "OK", msg = "status should be parsed correctly");
+}
+
+@test:Config {}
+function testParseDiagnosticResponseRejectsInvalidJson() {
+    byte[] payload = "not-json".toBytes();
+    DiagnosticResponse|error response = parseDiagnosticResponse(payload);
+    test:assertTrue(response is error, msg = "Non-JSON payload should be rejected");
+}
+
+@test:Config {}
+function testParseDiagnosticResponseRejectsMissingFields() {
+    byte[] payload = string `{"plantId":"plant-1","machineId":"machine-1"}`.toBytes();
+    DiagnosticResponse|error response = parseDiagnosticResponse(payload);
+    test:assertTrue(response is error, msg = "Payload missing correlationId/status should be rejected");
+}
+
+@test:Config {}
+function testParseDiagnosticResponseRejectsEmptyCorrelationId() {
+    byte[] payload = string `{"plantId":"plant-1","machineId":"machine-1","correlationId":"","status":"OK"}`.toBytes();
+    DiagnosticResponse|error response = parseDiagnosticResponse(payload);
+    test:assertTrue(response is error, msg = "Payload with empty correlationId should be rejected");
+}
+
+@test:Config {}
+function testDiagnosticTrackerRegisterAndResolve() {
+    DiagnosticTracker tracker = new;
+    PendingDiagnostic pending = {plantId: "plant-1", machineId: "machine-1", sensorType: "vibration"};
+    tracker.registerPending("correlation-1", pending);
+
+    PendingDiagnostic? resolved = tracker.resolveResponse("correlation-1");
+    test:assertTrue(resolved is PendingDiagnostic, msg = "A registered pending diagnostic should be resolved by a matching response");
+    if resolved is PendingDiagnostic {
+        test:assertEquals(resolved.plantId, "plant-1", msg = "Resolved diagnostic should carry the original plant id");
+        test:assertEquals(resolved.machineId, "machine-1", msg = "Resolved diagnostic should carry the original machine id");
+    }
+
+    DiagnosticCounters counters = tracker.snapshot();
+    test:assertEquals(counters.diagnosticsSent, 1, msg = "diagnosticsSent should reflect the registered diagnostic");
+    test:assertEquals(counters.diagnosticsAnswered, 1, msg = "diagnosticsAnswered should reflect the resolved diagnostic");
+    test:assertEquals(counters.diagnosticsUnanswered, 0, msg = "diagnosticsUnanswered should remain zero for a resolved diagnostic");
+}
+
+@test:Config {}
+function testDiagnosticTrackerResolveUnknownCorrelationIdReturnsNil() {
+    DiagnosticTracker tracker = new;
+    PendingDiagnostic? resolved = tracker.resolveResponse("unknown-correlation-id");
+    test:assertTrue(resolved is (), msg = "Resolving an unknown correlationId should return nil");
+}
+
+@test:Config {}
+function testDiagnosticTrackerExpireIfPendingMarksUnanswered() {
+    DiagnosticTracker tracker = new;
+    PendingDiagnostic pending = {plantId: "plant-1", machineId: "machine-1", sensorType: "runtime"};
+    tracker.registerPending("correlation-2", pending);
+
+    boolean expired = tracker.expireIfPending("correlation-2");
+    test:assertTrue(expired, msg = "A still-pending diagnostic should be expired successfully");
+
+    DiagnosticCounters counters = tracker.snapshot();
+    test:assertEquals(counters.diagnosticsSent, 1, msg = "diagnosticsSent should reflect the registered diagnostic");
+    test:assertEquals(counters.diagnosticsAnswered, 0, msg = "diagnosticsAnswered should remain zero for an expired diagnostic");
+    test:assertEquals(counters.diagnosticsUnanswered, 1, msg = "diagnosticsUnanswered should reflect the expired diagnostic");
+}
+
+@test:Config {}
+function testDiagnosticTrackerExpireIfPendingReturnsFalseWhenAlreadyResolved() {
+    DiagnosticTracker tracker = new;
+    PendingDiagnostic pending = {plantId: "plant-1", machineId: "machine-1", sensorType: "vibration"};
+    tracker.registerPending("correlation-3", pending);
+
+    PendingDiagnostic? resolved = tracker.resolveResponse("correlation-3");
+    test:assertTrue(resolved is PendingDiagnostic, msg = "The diagnostic should resolve successfully before expiry runs");
+
+    boolean expired = tracker.expireIfPending("correlation-3");
+    test:assertFalse(expired, msg = "Expiring an already-resolved diagnostic should not mark it unanswered again");
+
+    DiagnosticCounters counters = tracker.snapshot();
+    test:assertEquals(counters.diagnosticsAnswered, 1, msg = "diagnosticsAnswered should not be affected by a late expiry check");
+    test:assertEquals(counters.diagnosticsUnanswered, 0, msg = "diagnosticsUnanswered should not be incremented for an already-resolved diagnostic");
+}
+
+@test:Config {}
+function testDiagnosticTrackerTracksCountersIndependently() {
+    DiagnosticTracker tracker = new;
+    tracker.registerPending("correlation-4", {plantId: "plant-1", machineId: "machine-1", sensorType: "vibration"});
+    tracker.registerPending("correlation-5", {plantId: "plant-1", machineId: "machine-2", sensorType: "runtime"});
+    tracker.registerPending("correlation-6", {plantId: "plant-2", machineId: "machine-3", sensorType: "vibration"});
+
+    PendingDiagnostic? _ = tracker.resolveResponse("correlation-4");
+    boolean _ = tracker.expireIfPending("correlation-5");
+    // correlation-6 is intentionally left pending.
+
+    DiagnosticCounters counters = tracker.snapshot();
+    test:assertEquals(counters.diagnosticsSent, 3, msg = "diagnosticsSent should count all registered diagnostics");
+    test:assertEquals(counters.diagnosticsAnswered, 1, msg = "diagnosticsAnswered should count only the resolved diagnostic");
+    test:assertEquals(counters.diagnosticsUnanswered, 1, msg = "diagnosticsUnanswered should count only the expired diagnostic");
+}

@@ -197,3 +197,117 @@ public isolated function buildRuntimeAlert(RuntimeReading reading, decimal maxRu
     recordedAt: reading.recordedAt,
     message: string `Machine ${reading.machineId} in plant ${reading.plantId} recorded runtime of ${reading.runtimeHours} hours, exceeding the allowed maximum of ${maxRuntimeThresholdHours} hours`
 };
+
+# Tracks in-flight diagnostic requests awaiting a correlated response, along with the
+# diagnostics lifecycle counters, in a concurrency-safe manner.
+public isolated class DiagnosticTracker {
+    private map<PendingDiagnostic> pendingDiagnosticsByCorrelationId = {};
+    private int diagnosticsSent = 0;
+    private int diagnosticsAnswered = 0;
+    private int diagnosticsUnanswered = 0;
+
+    # Registers a newly published diagnostic request as pending a response.
+    #
+    # + correlationId - The unique correlation identifier for the diagnostic request
+    # + pending - The plant, machine, and sensor context of the diagnostic request
+    public isolated function registerPending(string correlationId, PendingDiagnostic pending) {
+        lock {
+            self.pendingDiagnosticsByCorrelationId[correlationId] = pending.clone();
+            self.diagnosticsSent += 1;
+        }
+    }
+
+    # Resolves a diagnostic response against its originating pending request, if still pending.
+    #
+    # + correlationId - The correlation identifier carried by the diagnostic response
+    # + return - The matched PendingDiagnostic if the request was still pending, or () if the
+    #            correlationId is unknown or already timed out
+    public isolated function resolveResponse(string correlationId) returns PendingDiagnostic? {
+        lock {
+            PendingDiagnostic? pending = self.pendingDiagnosticsByCorrelationId.removeIfHasKey(correlationId);
+            if pending is PendingDiagnostic {
+                self.diagnosticsAnswered += 1;
+                return pending.clone();
+            }
+            return ();
+        }
+    }
+
+    # Expires a diagnostic request if it is still pending, marking it as unanswered.
+    #
+    # + correlationId - The correlation identifier of the diagnostic request to expire
+    # + return - true if the request was still pending and has now been marked unanswered,
+    #            false if it had already been resolved by a response
+    public isolated function expireIfPending(string correlationId) returns boolean {
+        lock {
+            PendingDiagnostic? pending = self.pendingDiagnosticsByCorrelationId.removeIfHasKey(correlationId);
+            if pending is PendingDiagnostic {
+                self.diagnosticsUnanswered += 1;
+                return true;
+            }
+            return false;
+        }
+    }
+
+    # Builds a snapshot of the current diagnostics lifecycle counters.
+    #
+    # + return - The current DiagnosticCounters snapshot
+    public isolated function snapshot() returns DiagnosticCounters {
+        lock {
+            return {
+                diagnosticsSent: self.diagnosticsSent,
+                diagnosticsAnswered: self.diagnosticsAnswered,
+                diagnosticsUnanswered: self.diagnosticsUnanswered
+            };
+        }
+    }
+}
+
+# Builds the diagnostic request topic for a given plant and machine.
+#
+# + plantId - The plant identifier
+# + machineId - The machine identifier
+# + return - The fully qualified diagnostic request topic
+public isolated function buildDiagnosticRequestTopic(string plantId, string machineId) returns string {
+    return string `plant/${plantId}/machines/${machineId}/diagnostics`;
+}
+
+# Builds the diagnostic response topic for a given plant and machine.
+#
+# + plantId - The plant identifier
+# + machineId - The machine identifier
+# + return - The fully qualified diagnostic response topic
+public isolated function buildDiagnosticResponseTopic(string plantId, string machineId) returns string {
+    return string `plant/${plantId}/machines/${machineId}/diagnostics/response`;
+}
+
+# Builds a DiagnosticRequest for a maintenance alert using the given correlation identifier.
+#
+# + alert - The maintenance alert that triggered the diagnostic request
+# + correlationId - The unique correlation identifier generated for this request
+# + return - The constructed DiagnosticRequest
+public isolated function buildDiagnosticRequest(MaintenanceAlert alert, string correlationId) returns DiagnosticRequest => {
+    plantId: alert.plantId,
+    machineId: alert.machineId,
+    sensorType: alert.sensorType,
+    correlationId: correlationId
+};
+
+# Parses and validates a raw MQTT payload into a typed DiagnosticResponse.
+# Rejects payloads that are not valid JSON, are missing required fields, or carry an empty
+# correlationId.
+#
+# + payload - Raw MQTT message payload bytes
+# + return - The parsed DiagnosticResponse, or an error if the payload is malformed
+public isolated function parseDiagnosticResponse(byte[] payload) returns DiagnosticResponse|error {
+    string payloadText = check string:fromBytes(payload);
+    json payloadJson = check payloadText.fromJsonString();
+    DiagnosticResponse response = check payloadJson.cloneWithType(DiagnosticResponse);
+
+    string correlationId = response.correlationId;
+    if correlationId.trim().length() == 0 {
+        return error("Malformed diagnostic response: correlationId must be non-empty");
+    }
+
+    return response;
+}
