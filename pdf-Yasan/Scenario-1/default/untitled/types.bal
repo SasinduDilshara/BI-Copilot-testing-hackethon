@@ -49,3 +49,8 @@ type BadRequestError record {|
     *http:BadRequest;
     ErrorDetails body;
 |};
+
+type NotFoundError record {|
+    *http:NotFound;
+    ErrorDetails body;
+|};

@@ -1,4 +1,5 @@
 import ballerina/http;
+import ballerina/lang.array;
 import ballerina/pdf;
 
 // Reads the uploaded PDF bytes from the request in-memory and extracts the per-page text content.
@@ -22,6 +23,29 @@ function extractPdfPages(http:Request request) returns string[]|BadRequestError 
     }
 
     return pages;
+}
+
+// Reads the uploaded PDF bytes from the request in-memory and renders every page to a Base64-encoded PNG image.
+function renderPdfPagesToImages(http:Request request) returns string[]|BadRequestError {
+    byte[]|http:ClientError uploadedBytes = request.getBinaryPayload();
+    if uploadedBytes is http:ClientError {
+        return {
+            body: {
+                message: string `Failed to read the uploaded document: ${uploadedBytes.message()}`
+            }
+        };
+    }
+
+    string[]|pdf:Error base64Images = pdf:toImages(uploadedBytes);
+    if base64Images is pdf:Error {
+        return {
+            body: {
+                message: string `Failed to render the uploaded document: ${base64Images.message()}`
+            }
+        };
+    }
+
+    return base64Images;
 }
 
 service /documents on new http:Listener(8090) {
@@ -103,5 +127,42 @@ service /documents on new http:Listener(8090) {
             query: q,
             matches: matches
         };
+    }
+
+    # Renders a single page of an uploaded PDF document to a PNG image.
+    #
+    # + request - The inbound request carrying the raw PDF bytes
+    # + page - The 1-based page number to render (defaults to 1)
+    # + return - The rendered PNG image bytes, a typed not-found error if the page is out of range,
+    # or a typed bad request error if the PDF could not be processed
+    resource function post documents/thumbnail(http:Request request, int page = 1) returns http:Response|BadRequestError|NotFoundError {
+        string[]|BadRequestError base64Images = renderPdfPagesToImages(request);
+        if base64Images is BadRequestError {
+            return base64Images;
+        }
+
+        if page < 1 || page > base64Images.length() {
+            NotFoundError notFoundError = {
+                body: {
+                    message: string `Page ${page} is out of range. The document has ${base64Images.length()} page(s).`
+                }
+            };
+            return notFoundError;
+        }
+
+        string base64Image = base64Images[page - 1];
+        byte[]|error imageBytes = array:fromBase64(base64Image);
+        if imageBytes is error {
+            BadRequestError badRequestError = {
+                body: {
+                    message: string `Failed to decode the rendered image: ${imageBytes.message()}`
+                }
+            };
+            return badRequestError;
+        }
+
+        http:Response response = new;
+        response.setBinaryPayload(imageBytes, contentType = "image/png");
+        return response;
     }
 }
