@@ -8,6 +8,7 @@ configurable string sftpPrivateKeyPath = ?;
 const string OUTGOING_DIR = "/outgoing";
 const string PROCESSED_DIR = "/processed";
 const string ARCHIVE_DIR = "/archive";
+const string ERROR_DIR = "/error";
 
 // Order files are named like 'orders-20240115.csv'.
 final string:RegExp ORDER_FILE_PATTERN = re `^orders-\d{8}\.csv$`;

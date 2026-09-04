@@ -1,18 +1,18 @@
-// Canonical order line record used throughout the program.
-public type OrderLine record {|
-    string orderId;
-    string sku;
-    int qty;
-    decimal unitPrice;
-|};
+import ballerina/data.csv;
 
-// Intermediate record used only to bind CSV rows, since the source CSV headers
-// ('Order ID', 'SKU', 'Quantity', 'Unit Price') do not match the OrderLine field names.
-type OrderCsvRow record {|
-    string 'Order\ ID;
-    string SKU;
-    string Quantity;
-    string 'Unit\ Price;
+// Canonical order line record used throughout the program.
+// The @csv:Name annotations map each field to its differently-named CSV header,
+// so ftp:Client's getCsv (which binds CSV content through ballerina/data.csv) can
+// bind directly into this record without any intermediate type or manual mapping.
+public type OrderLine record {|
+    @csv:Name {value: "Order ID"}
+    string orderId;
+    @csv:Name {value: "SKU"}
+    string sku;
+    @csv:Name {value: "Quantity"}
+    int qty;
+    @csv:Name {value: "Unit Price"}
+    decimal unitPrice;
 |};
 
 // Result of validating a single order file.

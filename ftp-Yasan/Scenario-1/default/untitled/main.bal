@@ -16,14 +16,24 @@ public function main() returns error? {
 }
 
 // Downloads, validates, summarizes, uploads the summary, and archives a single order file.
+// Any file with a malformed or business-rule-invalid row is moved to /error instead of being
+// left in /outgoing, so it is not repeatedly re-downloaded and re-processed on every run.
 function processOrderFile(string fileName) returns error? {
     string sourcePath = string `${OUTGOING_DIR}/${fileName}`;
 
-    OrderCsvRow[] csvRows = check sftpClient->getCsv(sourcePath);
-    FileValidationResult validationResult = check validateOrderFile(fileName, csvRows);
+    OrderLine[]|ftp:Error csvBindResult = sftpClient->getCsv(sourcePath);
+    if csvBindResult is ftp:Error {
+        int malformedLine = check locateMalformedLine(sourcePath);
+        log:printError(string `Malformed row in file ${fileName} at line ${malformedLine}`, 'error = csvBindResult);
+        check moveToErrorDirectory(sourcePath, fileName);
+        return;
+    }
 
+    OrderLine[] orderLines = csvBindResult;
+    FileValidationResult validationResult = validateOrderFile(fileName, orderLines);
     if !validationResult.valid {
-        log:printWarn(string `Skipping file ${fileName} due to invalid line(s)`);
+        log:printWarn(string `Moving file ${fileName} to ${ERROR_DIR} due to invalid line(s)`);
+        check moveToErrorDirectory(sourcePath, fileName);
         return;
     }
 
@@ -35,4 +45,16 @@ function processOrderFile(string fileName) returns error? {
     check sftpClient->move(sourcePath, archivePath);
 
     log:printInfo(string `Processed file ${fileName}: ${summary.orderCount} order(s), grand total ${summary.grandTotal.toString()}`);
+}
+
+// Re-reads the file as raw rows to identify which line failed to bind into an OrderLine.
+function locateMalformedLine(string sourcePath) returns int|error {
+    string[][] rawRows = check sftpClient->getCsv(sourcePath);
+    return findMalformedLine(rawRows);
+}
+
+// Moves a file from /outgoing to /error on the server.
+function moveToErrorDirectory(string sourcePath, string fileName) returns error? {
+    string errorPath = string `${ERROR_DIR}/${fileName}`;
+    check sftpClient->move(sourcePath, errorPath);
 }

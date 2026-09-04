@@ -1,7 +1,2 @@
-// Maps a raw CSV row (matched by header name) into the canonical OrderLine record.
-function toOrderLine(OrderCsvRow csvRow) returns OrderLine|error => {
-    orderId: csvRow.'Order\ ID,
-    sku: csvRow.SKU,
-    qty: check int:fromString(csvRow.Quantity),
-    unitPrice: check decimal:fromString(csvRow.'Unit\ Price)
-};
+// No manual data mappings are required: ftp:Client's getCsv binds CSV rows
+// directly into OrderLine using the @csv:Name annotations declared in types.bal.
