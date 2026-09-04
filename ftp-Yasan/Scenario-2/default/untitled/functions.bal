@@ -1,17 +1,3 @@
-import ballerina/data.csv;
-
-# Converts a single raw CSV row (with header row) into a typed OrderLine record.
-# Returns an error if the row does not bind to the OrderLine shape.
-#
-# + headerRow - The header row of the CSV file (first row)
-# + dataRow - The data row to convert
-# + return - The bound OrderLine record, or an error if binding fails
-function bindOrderLine(string[] headerRow, string[] dataRow) returns OrderLine|error {
-    string[][] rowAsCsv = [headerRow, dataRow];
-    OrderLine[] bound = check csv:parseList(rowAsCsv);
-    return bound[0];
-}
-
 # Validates a bound OrderLine according to the business rules.
 # qty must be greater than zero and unitPrice must not be negative.
 #

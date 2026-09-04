@@ -7,39 +7,44 @@ import ballerina/log;
 }
 service on orderIntakeListener {
 
-    remote function onFileCsv(string[][] content, ftp:FileInfo fileInfo) returns error? {
+    remote function onFileCsv(stream<OrderLine, error?> content, ftp:FileInfo fileInfo) returns error? {
         string fileName = fileInfo.name;
 
-        if content.length() == 0 {
-            log:printError("orders file has no rows, moving to error directory", fileName = fileName);
-            check moveToError(fileName);
-            return;
-        }
-
-        string[] headerRow = content[0];
-        string[][] dataRows = content.slice(1);
-
         OrderLine[] orderLines = [];
-        foreach int rowIndex in 0 ..< dataRows.length() {
-            string[] dataRow = dataRows[rowIndex];
-            OrderLine|error orderLine = bindOrderLine(headerRow, dataRow);
-            if orderLine is error {
+        // Row 1 is the header, so the first data row is physical line 2.
+        int physicalLine = 2;
+
+        while true {
+            record {|OrderLine value;|}|error? next = content.next();
+
+            if next is error {
                 log:printError("malformed order line, moving file to error directory",
-                        fileName = fileName, lineNumber = rowIndex + 2, line = dataRow.toString(), 'error = orderLine);
+                        fileName = fileName, lineNumber = physicalLine, 'error = next);
+                check content.close();
                 check moveToError(fileName);
                 return;
             }
 
+            if next is () {
+                break;
+            }
+
+            OrderLine orderLine = next.value;
             error? validationError = validateOrderLine(orderLine);
             if validationError is error {
                 log:printError("invalid order line, moving file to error directory",
-                        fileName = fileName, lineNumber = rowIndex + 2, line = dataRow.toString(), 'error = validationError);
+                        fileName = fileName, lineNumber = physicalLine, line = orderLine.toString(),
+                        'error = validationError);
+                check content.close();
                 check moveToError(fileName);
                 return;
             }
 
             orderLines.push(orderLine);
+            physicalLine += 1;
         }
+
+        check content.close();
 
         OrderSummary summary = computeOrderSummary(fileName, orderLines);
 
