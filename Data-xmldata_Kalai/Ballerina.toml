@@ -1,0 +1,3 @@
+[workspace]
+title = "data_xmldata"
+packages = ["prompt_1"]
