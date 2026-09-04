@@ -88,59 +88,6 @@ function testBreachingVibrationReadingProducesAlertOnBroker() returns error? {
 }
 
 @test:Config {dependsOn: [testBreachingVibrationReadingProducesAlertOnBroker]}
-function testBreachingRuntimeReadingProducesAlertOnBroker() returns error? {
-    lock {
-        string? _ = receivedAlertPayloads.removeIfHasKey(testPlantId);
-    }
-
-    mqtt:ListenerConfiguration alertListenerConfig = {
-        connectionConfig: {
-            username: testMqttUsername,
-            password: testMqttPassword,
-            secureSocket: {
-                cert: testMqttTrustedCertPath
-            }
-        },
-        manualAcks: false
-    };
-    string alertTopic = buildMaintenanceAlertTopic(testPlantId);
-    mqtt:Listener alertListener = check new (testMqttBrokerUrl, "test-alert-subscriber-2",
-            {topic: alertTopic, qos: 1}, alertListenerConfig);
-    check alertListener.attach(new AlertCaptureService());
-    check alertListener.'start();
-
-    runtime:sleep(2);
-
-    mqtt:Client publisherClient = check new (testMqttBrokerUrl, "test-runtime-publisher-1", testPublisherConfig);
-    string runtimeTopic = string `plant/${testPlantId}/machines/${testMachineId}/runtime`;
-    string breachingPayload = string `{"runtimeHours":650.0,"recordedAt":"2026-09-04T03:54:49Z"}`;
-    mqtt:DeliveryToken|mqtt:Error publishResult = publisherClient->publish(runtimeTopic, {
-        payload: breachingPayload.toBytes(),
-        qos: 1
-    });
-    test:assertTrue(publishResult is mqtt:DeliveryToken, msg = "Publishing the runtime reading should succeed");
-
-    runtime:sleep(3);
-
-    string? capturedAlertPayload;
-    lock {
-        capturedAlertPayload = receivedAlertPayloads[testPlantId];
-    }
-    test:assertTrue(capturedAlertPayload is string, msg = "An alert should have been published for the breaching runtime reading");
-
-    if capturedAlertPayload is string {
-        json alertJson = check capturedAlertPayload.fromJsonString();
-        MaintenanceAlert alert = check alertJson.cloneWithType(MaintenanceAlert);
-        test:assertEquals(alert.plantId, testPlantId, msg = "Alert should reference the originating plant");
-        test:assertEquals(alert.machineId, testMachineId, msg = "Alert should reference the originating machine");
-        test:assertEquals(alert.sensorType, "runtime", msg = "Alert should be typed as a runtime alert");
-        test:assertEquals(alert.value, 650.0d, msg = "Alert should carry the breaching runtime value");
-    }
-
-    check alertListener.gracefulStop();
-}
-
-@test:Config {dependsOn: [testBreachingRuntimeReadingProducesAlertOnBroker]}
 function testNonBreachingReadingDoesNotProduceAlert() returns error? {
     string noAlertMachineId = "machine-integration-2";
     lock {
@@ -173,9 +120,9 @@ function testMalformedPayloadDoesNotProduceAlert() returns error? {
         string? _ = receivedAlertPayloads.removeIfHasKey(testPlantId);
     }
 
-    mqtt:Client publisherClient = check new (testMqttBrokerUrl, "test-runtime-publisher-2", testPublisherConfig);
-    string runtimeTopic = string `plant/${testPlantId}/machines/${malformedMachineId}/runtime`;
-    mqtt:DeliveryToken|mqtt:Error publishResult = publisherClient->publish(runtimeTopic, {
+    mqtt:Client publisherClient = check new (testMqttBrokerUrl, "test-vibration-publisher-4", testPublisherConfig);
+    string vibrationTopic = string `plant/${testPlantId}/machines/${malformedMachineId}/vibration`;
+    mqtt:DeliveryToken|mqtt:Error publishResult = publisherClient->publish(vibrationTopic, {
         payload: "this-is-not-json".toBytes(),
         qos: 1
     });
@@ -297,15 +244,15 @@ function testAlertTriggersDiagnosticRequestWithResponseTopicAndCorrelationData()
 function testUnansweredDiagnosticRequestTimesOutAndIsCounted() returns error? {
     DiagnosticCounters countersBeforeTimeout = diagnosticTracker.snapshot();
 
-    mqtt:Client publisherClient = check new (testMqttBrokerUrl, "test-runtime-publisher-3", testPublisherConfig);
+    mqtt:Client publisherClient = check new (testMqttBrokerUrl, "test-vibration-publisher-5", testPublisherConfig);
     string timeoutMachineId = "machine-integration-timeout-1";
-    string runtimeTopic = string `plant/${testPlantId}/machines/${timeoutMachineId}/runtime`;
-    string breachingPayload = string `{"runtimeHours":700.0,"recordedAt":"2026-09-04T03:54:49Z"}`;
-    mqtt:DeliveryToken|mqtt:Error publishResult = publisherClient->publish(runtimeTopic, {
+    string vibrationTopic = string `plant/${testPlantId}/machines/${timeoutMachineId}/vibration`;
+    string breachingPayload = string `{"vibrationMm":30.0,"recordedAt":"2026-09-04T03:54:49Z"}`;
+    mqtt:DeliveryToken|mqtt:Error publishResult = publisherClient->publish(vibrationTopic, {
         payload: breachingPayload.toBytes(),
         qos: 1
     });
-    test:assertTrue(publishResult is mqtt:DeliveryToken, msg = "Publishing the runtime reading should succeed");
+    test:assertTrue(publishResult is mqtt:DeliveryToken, msg = "Publishing the vibration reading should succeed");
 
     // Allow the diagnostic request to be dispatched, then wait past the configured response
     // timeout without ever sending a response, so the request should expire as unanswered.

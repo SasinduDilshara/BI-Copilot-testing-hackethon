@@ -11,10 +11,8 @@ mqtt:ListenerConfiguration sensorListenerConfig = {
     manualAcks: true
 };
 
-listener mqtt:Listener sensorListener = new (mqttBrokerUrl, mqttSubscriberClientId, [
-    {topic: vibrationTopicFilter, qos: sensorSubscriptionQos},
-    {topic: runtimeTopicFilter, qos: sensorSubscriptionQos}
-], sensorListenerConfig);
+listener mqtt:Listener sensorListener = new (mqttBrokerUrl, mqttSubscriberClientId,
+    {topic: vibrationTopicFilter, qos: sensorSubscriptionQos}, sensorListenerConfig);
 
 mqtt:ClientConfiguration alertPublisherConfig = {
     connectionConfig: {

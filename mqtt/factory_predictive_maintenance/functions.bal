@@ -22,21 +22,6 @@ public isolated class MachineStateStore {
         }
     }
 
-    # Records the latest runtime reading for the reading's plant and machine.
-    #
-    # + reading - The parsed runtime reading
-    public isolated function recordRuntimeReading(RuntimeReading reading) {
-        string machineKey = buildMachineKey(reading.plantId, reading.machineId);
-        lock {
-            MachineState currentState = self.statesByMachineKey[machineKey] ?: {
-                plantId: reading.plantId,
-                machineId: reading.machineId
-            };
-            currentState.latestRuntime = reading.clone();
-            self.statesByMachineKey[machineKey] = currentState;
-        }
-    }
-
     # Returns a snapshot of the latest known state for a given plant and machine, if any.
     #
     # + plantId - The plant identifier
@@ -61,7 +46,7 @@ public isolated function buildMachineKey(string plantId, string machineId) retur
 }
 
 # Extracts the plantId and machineId path segments from a fleet sensor topic such as
-# plant/{plantId}/machines/{machineId}/vibration or plant/{plantId}/machines/{machineId}/runtime.
+# plant/{plantId}/machines/{machineId}/vibration.
 #
 # + topic - The MQTT topic the message was delivered on
 # + return - A tuple of [plantId, machineId], or an error if the topic does not match the expected shape
@@ -115,33 +100,6 @@ public isolated function parseVibrationReading(byte[] payload, string plantId, s
     };
 }
 
-# Parses and validates a raw MQTT payload into a typed RuntimeReading, using the plantId and
-# machineId extracted from the topic. Rejects payloads that are not valid JSON, are missing
-# required fields, have the wrong field types, or contain an invalid recordedAt timestamp.
-#
-# + payload - Raw MQTT message payload bytes
-# + plantId - The plant identifier extracted from the topic
-# + machineId - The machine identifier extracted from the topic
-# + return - The parsed RuntimeReading, or an error if the payload is malformed
-public isolated function parseRuntimeReading(byte[] payload, string plantId, string machineId) returns RuntimeReading|error {
-    string payloadText = check string:fromBytes(payload);
-    json payloadJson = check payloadText.fromJsonString();
-    record {| decimal runtimeHours; string recordedAt; |} body =
-        check payloadJson.cloneWithType();
-
-    string recordedAt = body.recordedAt;
-    if !isValidTimestamp(recordedAt) {
-        return error("Malformed runtime reading: recordedAt must be a valid ISO 8601 timestamp");
-    }
-
-    return {
-        plantId,
-        machineId,
-        runtimeHours: body.runtimeHours,
-        recordedAt
-    };
-}
-
 # Determines whether a vibration reading breaches the configured maximum vibration threshold.
 #
 # + reading - The parsed vibration reading
@@ -149,15 +107,6 @@ public isolated function parseRuntimeReading(byte[] payload, string plantId, str
 # + return - true if the reading breaches the given maximum allowed vibration
 public isolated function isVibrationBreach(VibrationReading reading, decimal maxVibrationThresholdMm) returns boolean {
     return reading.vibrationMm > maxVibrationThresholdMm;
-}
-
-# Determines whether a runtime reading breaches the configured maximum runtime threshold.
-#
-# + reading - The parsed runtime reading
-# + maxRuntimeThresholdHours - The configured maximum allowed runtime in hours
-# + return - true if the reading breaches the given maximum allowed runtime
-public isolated function isRuntimeBreach(RuntimeReading reading, decimal maxRuntimeThresholdHours) returns boolean {
-    return reading.runtimeHours > maxRuntimeThresholdHours;
 }
 
 # Builds the maintenance alert topic for a given plant.
@@ -181,21 +130,6 @@ public isolated function buildVibrationAlert(VibrationReading reading, decimal m
     thresholdValue: maxVibrationThresholdMm,
     recordedAt: reading.recordedAt,
     message: string `Machine ${reading.machineId} in plant ${reading.plantId} recorded vibration of ${reading.vibrationMm}mm, exceeding the allowed maximum of ${maxVibrationThresholdMm}mm`
-};
-
-# Builds a MaintenanceAlert from a breaching runtime reading.
-#
-# + reading - The parsed runtime reading that breached the threshold
-# + maxRuntimeThresholdHours - The configured maximum runtime threshold that was breached
-# + return - The constructed MaintenanceAlert
-public isolated function buildRuntimeAlert(RuntimeReading reading, decimal maxRuntimeThresholdHours) returns MaintenanceAlert => {
-    plantId: reading.plantId,
-    machineId: reading.machineId,
-    sensorType: "runtime",
-    value: reading.runtimeHours,
-    thresholdValue: maxRuntimeThresholdHours,
-    recordedAt: reading.recordedAt,
-    message: string `Machine ${reading.machineId} in plant ${reading.plantId} recorded runtime of ${reading.runtimeHours} hours, exceeding the allowed maximum of ${maxRuntimeThresholdHours} hours`
 };
 
 # Tracks in-flight diagnostic requests awaiting a correlated response, along with the

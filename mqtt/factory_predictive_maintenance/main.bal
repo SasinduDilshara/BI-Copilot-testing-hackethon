@@ -18,8 +18,6 @@ service mqtt:Service on sensorListener {
 
         if topic.endsWith("/vibration") {
             check self.handleVibrationMessage(message.payload, plantId, machineId, topic);
-        } else if topic.endsWith("/runtime") {
-            check self.handleRuntimeMessage(message.payload, plantId, machineId, topic);
         } else {
             log:printError("Rejected message on unsupported sensor topic", topic = topic);
         }
@@ -47,24 +45,6 @@ service mqtt:Service on sensorListener {
 
         if isVibrationBreach(reading, maxVibrationMm) {
             MaintenanceAlert alert = buildVibrationAlert(reading, maxVibrationMm);
-            check publishMaintenanceAlert(alert);
-            dispatchDiagnosticRequest(alert);
-        }
-    }
-
-    function handleRuntimeMessage(byte[] payload, string plantId, string machineId, string topic) returns error? {
-        RuntimeReading|error reading = parseRuntimeReading(payload, plantId, machineId);
-        if reading is error {
-            log:printError("Rejected malformed runtime payload", 'error = reading, topic = topic);
-            return;
-        }
-
-        log:printInfo("Processed runtime reading", plantId = reading.plantId, machineId = reading.machineId,
-                runtimeHours = reading.runtimeHours);
-        machineStateStore.recordRuntimeReading(reading);
-
-        if isRuntimeBreach(reading, maxRuntimeHours) {
-            MaintenanceAlert alert = buildRuntimeAlert(reading, maxRuntimeHours);
             check publishMaintenanceAlert(alert);
             dispatchDiagnosticRequest(alert);
         }
