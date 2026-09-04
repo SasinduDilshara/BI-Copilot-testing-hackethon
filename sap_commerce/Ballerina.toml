@@ -1,0 +1,3 @@
+[workspace]
+title = "sap-commerce"
+packages = ["order_confirmation"]
