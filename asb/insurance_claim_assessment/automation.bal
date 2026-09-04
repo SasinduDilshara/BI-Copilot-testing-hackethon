@@ -1,7 +1,26 @@
+import ballerina/lang.runtime;
 import ballerina/log;
 import ballerinax/asb;
 
 boolean workerShouldRun = true;
+
+// Signals a background lock-renewal task to stop once the processing it is guarding
+// has finished.
+isolated class RenewalSignal {
+    private boolean stopRequested = false;
+
+    isolated function requestStop() {
+        lock {
+            self.stopRequested = true;
+        }
+    }
+
+    isolated function shouldStop() returns boolean {
+        lock {
+            return self.stopRequested;
+        }
+    }
+}
 
 function init() returns error? {
     check provisionClaimsIntakeQueue();
@@ -56,21 +75,9 @@ function processClaimMessage(asb:Message claimMessage) returns error? {
 
     log:printInfo("Received claim submission", claimId = claim.claimId, policyNumber = claim.policyNumber);
 
-    ClaimAssessmentResult|error assessmentResult = scoreClaim(claim);
+    ClaimAssessmentResult|error assessmentResult = assessClaimWithLockRenewal(claimMessage, claim);
     if assessmentResult is error {
-        log:printError("Transient scoring failure; abandoning message for retry", assessmentResult, claimId = claim.claimId);
-        asb:Error? abandonResult = claimsIntakeReceiver->abandon(claimMessage);
-        if abandonResult is asb:Error {
-            log:printError("Failed to abandon claim message", abandonResult, claimId = claim.claimId);
-            return abandonResult;
-        }
-        recordAbandoned();
-        return;
-    }
-
-    error? publishResult = publishAssessmentResult(assessmentResult);
-    if publishResult is error {
-        log:printError("Failed to publish claim assessment result; abandoning message for retry", publishResult, claimId = claim.claimId);
+        log:printError("Transient failure while assessing or publishing claim result; abandoning message for retry", assessmentResult, claimId = claim.claimId);
         asb:Error? abandonResult = claimsIntakeReceiver->abandon(claimMessage);
         if abandonResult is asb:Error {
             log:printError("Failed to abandon claim message", abandonResult, claimId = claim.claimId);
@@ -86,6 +93,55 @@ function processClaimMessage(asb:Message claimMessage) returns error? {
         return completeResult;
     }
     recordCompleted();
+}
+
+// Scores the claim and publishes the assessment result while periodically renewing the
+// claim message's lock in the background, since assessment can take longer than the
+// claims-intake queue's configured lock duration. Returns the assessment result, or an
+// error if scoring or publishing failed transiently.
+function assessClaimWithLockRenewal(asb:Message claimMessage, ClaimSubmission claim) returns ClaimAssessmentResult|error {
+    RenewalSignal renewalSignal = new;
+    future<()> renewalTask = start renewMessageLockPeriodically(claimMessage, renewalSignal);
+
+    ClaimAssessmentResult|error assessmentResult = scoreClaim(claim);
+    error? publishResult = ();
+    if assessmentResult is ClaimAssessmentResult {
+        publishResult = publishAssessmentResult(assessmentResult);
+    }
+
+    renewalSignal.requestStop();
+    error? renewalTaskResult = wait renewalTask;
+    if renewalTaskResult is error {
+        log:printError("Lock-renewal background task terminated unexpectedly", renewalTaskResult, claimId = claim.claimId);
+    }
+
+    if assessmentResult is error {
+        return assessmentResult;
+    }
+    if publishResult is error {
+        return publishResult;
+    }
+    return assessmentResult;
+}
+
+// Periodically renews the lock on a claim message while it is being processed. Stops
+// once the given RenewalSignal is signalled to stop. Each renewal failure is recorded
+// in the operational counters so it is visible in health metrics.
+function renewMessageLockPeriodically(asb:Message claimMessage, RenewalSignal renewalSignal) {
+    while !renewalSignal.shouldStop() {
+        runtime:sleep(lockRenewalIntervalSeconds);
+        if renewalSignal.shouldStop() {
+            break;
+        }
+
+        asb:Error? renewResult = claimsIntakeReceiver->renewLock(claimMessage);
+        if renewResult is asb:Error {
+            string? correlationId = claimMessage.correlationId;
+            string claimIdForLog = correlationId ?: "unknown";
+            log:printError("Failed to renew lock on claim message", renewResult, claimId = claimIdForLog);
+            recordLockRenewalFailed();
+        }
+    }
 }
 
 // Dead-letters a claim message with the given reason and description, recording the

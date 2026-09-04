@@ -1,3 +1,4 @@
+import ballerina/lang.runtime;
 import ballerina/log;
 import ballerina/time;
 import ballerinax/asb;
@@ -91,8 +92,16 @@ function validateClaimSubmission(ClaimSubmission claim) returns error? {
 
 // Scores a validated claim to produce an assessment decision. This simulates a scoring
 // engine call that may fail transiently (e.g. a downstream scoring service outage),
-// in which case the caller should abandon the message so it can be retried.
+// in which case the caller should abandon the message so it can be retried. When the
+// claim carries a simulatedProcessingDelaySeconds value, scoring is artificially
+// delayed by that many seconds to exercise assessments that outlast the queue's lock
+// duration.
 function scoreClaim(ClaimSubmission claim) returns ClaimAssessmentResult|error {
+    int? simulatedProcessingDelaySeconds = claim.simulatedProcessingDelaySeconds;
+    if simulatedProcessingDelaySeconds is int && simulatedProcessingDelaySeconds > 0 {
+        runtime:sleep(<decimal>simulatedProcessingDelaySeconds);
+    }
+
     string decision = claim.claimAmount > 50000d ? "MANUAL_REVIEW" : "APPROVED";
     ClaimAssessmentResult result = {
         claimId: claim.claimId,
@@ -130,6 +139,13 @@ function recordDeadLettered() {
 function recordAbandoned() {
     lock {
         operationalCounters.abandonedCount += 1;
+    }
+}
+
+// Increments the lock-renewal failure counter.
+function recordLockRenewalFailed() {
+    lock {
+        operationalCounters.lockRenewalFailedCount += 1;
     }
 }
 

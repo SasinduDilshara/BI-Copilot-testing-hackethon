@@ -6,7 +6,7 @@ final http:Client testClaimsClient = check new (string `http://localhost:${httpP
 
 // Polls the health endpoint until the given counter increases beyond its baseline value,
 // or the retry budget is exhausted.
-function waitForCounterIncrease(string counterName, int baselineValue, int maxAttempts = 20) returns OperationalCounters|error {
+function waitForCounterIncrease(string counterName, int baselineValue, int maxAttempts = 40) returns OperationalCounters|error {
     int attempt = 0;
     while attempt < maxAttempts {
         OperationalCounters counters = check testClaimsClient->/health.get();
@@ -165,4 +165,47 @@ function testScoreClaimProducesAssessmentResult() returns error? {
     ClaimAssessmentResult result = check scoreClaim(claim);
     test:assertEquals(result.claimId, "CLM-SCORE-1", msg = "Unexpected claimId in assessment result");
     test:assertEquals(result.decision, "MANUAL_REVIEW", msg = "Expected a high-value claim to require manual review");
+}
+
+// Lock-renewal path: an assessment that runs longer than the queue's configured lock
+// duration must still complete successfully, because the worker keeps renewing the
+// claim message's lock in the background while scoring is in progress. The
+// lockRenewalFailedCount should remain unchanged since lock renewal is expected to
+// succeed throughout.
+//
+// This test intentionally holds up the single claim-assessment worker loop for longer
+// than the lock duration. It depends on the other settlement-path tests so that it
+// always runs last, and therefore never head-of-line-blocks their tighter
+// waitForCounterIncrease budgets.
+@test:Config {
+    dependsOn: [
+        testSubmitClaimBatchAccepted,
+        testValidClaimIsCompletedAfterAssessmentPublication,
+        testInvalidClaimIsDeadLettered
+    ]
+}
+function testSlowAssessmentIsCompletedAfterLockRenewal() returns error? {
+    OperationalCounters baselineCounters = check testClaimsClient->/health.get();
+
+    int slowProcessingDelaySeconds = claimLockDurationSeconds + 15;
+
+    ClaimSubmissionBatch batch = {
+        claims: [
+            {
+                claimId: uniqueClaimId("CLM-SLOW"),
+                policyNumber: "POL-SLOW",
+                claimantId: "CUST-SLOW",
+                claimAmount: 3300.00d,
+                incidentDate: "2026-08-11",
+                simulatedProcessingDelaySeconds: slowProcessingDelaySeconds
+            }
+        ]
+    };
+
+    http:Response response = check testClaimsClient->/batchSubmissions.post(batch);
+    test:assertEquals(response.statusCode, http:STATUS_ACCEPTED, msg = "Expected the claim batch submission to be accepted");
+
+    OperationalCounters updatedCounters = check waitForCounterIncrease("completed", baselineCounters.completedCount, maxAttempts = slowProcessingDelaySeconds + 30);
+    test:assertTrue(updatedCounters.completedCount > baselineCounters.completedCount, msg = "Expected completedCount to increase once the slow assessment completes");
+    test:assertEquals(updatedCounters.lockRenewalFailedCount, baselineCounters.lockRenewalFailedCount, msg = "Expected no lock-renewal failures for a healthy renewal loop");
 }

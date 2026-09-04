@@ -33,9 +33,11 @@ final asb:MessageReceiver claimsIntakeReceiver = check new ({
     amqpRetryOptions: amqpRetryOptions
 });
 
-// Tracks how claim messages have been settled (completed, dead-lettered, or abandoned).
+// Tracks how claim messages have been settled (completed, dead-lettered, or abandoned)
+// and how many message lock renewals have failed.
 isolated OperationalCounters operationalCounters = {
     completedCount: 0,
     deadLetteredCount: 0,
-    abandonedCount: 0
+    abandonedCount: 0,
+    lockRenewalFailedCount: 0
 };

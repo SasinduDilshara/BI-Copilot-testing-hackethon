@@ -21,6 +21,11 @@ configurable int claimMessageTimeToLiveSeconds = 3600;
 // Lock duration applied while a receiver is processing a claim message, in seconds.
 configurable int claimLockDurationSeconds = 60;
 
+// Interval between message lock renewals while a claim is being assessed. Should be
+// comfortably shorter than claimLockDurationSeconds so the lock is renewed well before
+// it expires.
+configurable decimal lockRenewalIntervalSeconds = 20d;
+
 // Maximum number of delivery attempts before a claim message is dead-lettered automatically.
 configurable int claimMaxDeliveryCount = 5;
 

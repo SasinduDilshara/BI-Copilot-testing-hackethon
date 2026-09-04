@@ -9,6 +9,9 @@ public type ClaimSubmission record {|
     decimal claimAmount;
     string incidentDate;
     string description?;
+    // Artificial delay applied during scoring to simulate an assessment that runs
+    // longer than the queue's lock duration, used to exercise lock renewal.
+    int simulatedProcessingDelaySeconds?;
 |};
 
 // Batch of claim submissions accepted by the HTTP intake endpoint.
@@ -53,6 +56,7 @@ public type OperationalCounters record {|
     int completedCount;
     int deadLetteredCount;
     int abandonedCount;
+    int lockRenewalFailedCount;
 |};
 
 public type OperationalCountersResponse record {|
