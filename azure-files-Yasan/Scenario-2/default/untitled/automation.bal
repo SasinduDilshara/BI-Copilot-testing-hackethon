@@ -9,24 +9,25 @@ listener files:Listener orderFileListener = new (shareName, {
     }
 });
 
-// Watches the share root for new order files. Text-based files (e.g. .txt)
-// are routed to onFileText; anything else falls back to onFile.
+// Watches the share root for new order files. CSV files are parsed into
+// Order records; once a file is processed successfully it is moved into
+// the 'done' folder so it is not picked up again.
 service files:Service / on orderFileListener {
 
-    # Handles newly arrived text files by logging the file name and its
-    # text contents.
-    remote function onFileText(string content, files:FileInfo fileInfo) returns error? {
-        logIncomingOrderFile(fileInfo.name, content);
+    # Handles newly arrived order CSV files by binding each row to an
+    # Order record and logging the parsed orders. On success, the module
+    # moves the file into the 'done' folder via afterProcess.
+    @files:FunctionConfig {
+        afterProcess: {
+            moveTo: "/done"
+        }
+    }
+    remote function onFileCsv(Order[] content, files:FileInfo fileInfo) returns error? {
+        logParsedOrders(fileInfo.name, content);
     }
 
-    # Fallback handler for files that are not matched as text content.
-    # Logs the file name and its raw content decoded as text.
-    remote function onFile(byte[] content, files:FileInfo fileInfo) returns error? {
-        string textContent = check string:fromBytes(content);
-        logIncomingOrderFile(fileInfo.name, textContent);
-    }
-
-    # Logs any failure that occurs while polling or downloading a file.
+    # Logs any failure that occurs while polling, downloading, or binding
+    # a file's content.
     remote function onError(files:Error err) returns error? {
         logOrderFileError(err);
     }

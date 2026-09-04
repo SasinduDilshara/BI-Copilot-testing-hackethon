@@ -1,8 +1,10 @@
 import ballerina/log;
 
-// Logs the name and text contents of a newly arrived order file.
-function logIncomingOrderFile(string fileName, string textContent) {
-    log:printInfo("New order file received", fileName = fileName, content = textContent);
+// Logs the name of a newly arrived order file along with its parsed orders.
+function logParsedOrders(string fileName, Order[] orders) {
+    foreach Order 'order in orders {
+        log:printInfo("Parsed order from incoming file", fileName = fileName, 'order = 'order);
+    }
 }
 
 // Logs an error that occurred while watching or reading from the file share.
