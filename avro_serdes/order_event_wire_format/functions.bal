@@ -1,5 +1,8 @@
+import ballerina/avro;
 import ballerina/log;
+import ballerina/time;
 import ballerinax/confluent.cavroserdes;
+import ballerinax/confluent.cregistry;
 import ballerinax/kafka;
 
 # Validates the required business fields of a `CustomerProfile` before serialization.
@@ -97,4 +100,168 @@ public function consumeCustomerProfiles(decimal timeoutSeconds) returns Customer
         customerProfiles.push(customerProfile);
     }
     return customerProfiles;
+}
+
+# Represents a single field of a parsed Avro record schema, used for compatibility comparison.
+#
+# + name - The field name
+# + fieldType - The normalized `string` form of the field's Avro type
+# + hasDefault - Whether the field declares a default value
+type AvroSchemaField record {|
+    string name;
+    string fieldType;
+    boolean hasDefault;
+|};
+
+# Parses the fields of an Avro record schema string into a map keyed by field name.
+#
+# + schema - The Avro record schema in `string` format
+# + return - A map of field name to `AvroSchemaField`, or an error if the schema cannot be parsed
+function parseAvroRecordFields(string schema) returns map<AvroSchemaField>|error {
+    json schemaJson = check schema.fromJsonString();
+    record {|json[] fields; json...;|} parsedSchema = check schemaJson.cloneWithType();
+
+    map<AvroSchemaField> fieldsByName = {};
+    foreach json fieldJson in parsedSchema.fields {
+        record {|string name; json 'type; json...;|} parsedField = check fieldJson.cloneWithType();
+        AvroSchemaField schemaField = {
+            name: parsedField.name,
+            fieldType: parsedField.'type.toJsonString(),
+            hasDefault: parsedField.hasKey("default")
+        };
+        fieldsByName[parsedField.name] = schemaField;
+    }
+    return fieldsByName;
+}
+
+# Checks whether a candidate `CustomerProfile` Avro schema is backward compatible with the active schema.
+#
+# A candidate is considered compatible when:
+# - Every field present in the active schema is still present in the candidate with the same type, and
+# - Every field newly introduced by the candidate declares a default value.
+#
+# + activeSchema - The currently active Avro schema
+# + candidateSchema - The candidate Avro schema being evaluated for promotion
+# + return - `()` if compatible, or a `string` describing the first incompatibility found
+function checkAvroSchemaCompatibility(string activeSchema, string candidateSchema) returns string?|error {
+    map<AvroSchemaField> activeFields = check parseAvroRecordFields(activeSchema);
+    map<AvroSchemaField> candidateFields = check parseAvroRecordFields(candidateSchema);
+
+    foreach AvroSchemaField activeField in activeFields {
+        AvroSchemaField? candidateField = candidateFields[activeField.name];
+        if candidateField is () {
+            return string `field '${activeField.name}' present in the active schema is missing in the candidate schema`;
+        }
+        if candidateField.fieldType != activeField.fieldType {
+            return string `field '${activeField.name}' changed type from ${activeField.fieldType} to ${candidateField.fieldType}`;
+        }
+    }
+
+    foreach AvroSchemaField candidateField in candidateFields {
+        boolean isNewField = !activeFields.hasKey(candidateField.name);
+        if isNewField && !candidateField.hasDefault {
+            return string `newly added field '${candidateField.name}' does not declare a default value`;
+        }
+    }
+
+    return;
+}
+
+# Registers a candidate `CustomerProfile` Avro schema under the `customer-profile-value` subject only when it is
+# compatible with the currently active schema, recording an audit decision either way. Incompatible candidates are
+# rejected without registering the schema or changing the active version.
+#
+# + candidateSchema - The candidate Avro schema to evaluate for promotion
+# + return - The recorded `PromotionDecision`, or a `PromotionError` if the operation fails unexpectedly
+public function promoteCustomerProfileSchema(string candidateSchema) returns PromotionDecision|PromotionError {
+    _ = check validateAvroSchemaParses(candidateSchema);
+
+    string activeSchema = getActiveCustomerProfileSchema();
+
+    string?|error compatibilityResult = checkAvroSchemaCompatibility(activeSchema, candidateSchema);
+    if compatibilityResult is error {
+        return error PromotionError("failed to evaluate schema compatibility", compatibilityResult);
+    }
+
+    string decidedAt = time:utcToString(time:utcNow());
+
+    if compatibilityResult is string {
+        PromotionDecision decision = {
+            subject: customerProfileValueSubject,
+            outcome: "REJECTED",
+            reason: compatibilityResult,
+            schemaId: (),
+            candidateSchema,
+            decidedAt
+        };
+        recordPromotionDecision(decision);
+        log:printWarn("rejected incompatible customer profile schema candidate", reason = compatibilityResult);
+        return decision;
+    }
+
+    int|cregistry:Error registerResult = schemaRegistryClient->register(customerProfileValueSubject, candidateSchema);
+    if registerResult is cregistry:Error {
+        return error PromotionError("failed to register candidate schema with schema registry", registerResult);
+    }
+
+    PromotionDecision decision = {
+        subject: customerProfileValueSubject,
+        outcome: "APPROVED",
+        reason: "candidate schema is compatible with the active schema",
+        schemaId: registerResult,
+        candidateSchema,
+        decidedAt
+    };
+    setActiveCustomerProfileSchema(candidateSchema);
+    recordPromotionDecision(decision);
+    log:printInfo("promoted customer profile schema", schemaId = registerResult);
+    return decision;
+}
+
+# Validates that the given Avro schema `string` parses as a valid Avro schema.
+#
+# + schema - The Avro schema to validate
+# + return - `true` if valid, or a `PromotionError` if the schema is invalid
+function validateAvroSchemaParses(string schema) returns boolean|PromotionError {
+    avro:Schema|error parsed = new (schema);
+    if parsed is error {
+        return error PromotionError("candidate schema is not a valid Avro schema", parsed);
+    }
+    return true;
+}
+
+# Returns the currently active `CustomerProfile` Avro schema.
+#
+# + return - The active Avro schema `string`
+public isolated function getActiveCustomerProfileSchema() returns string {
+    lock {
+        return activeCustomerProfileSchema;
+    }
+}
+
+# Updates the currently active `CustomerProfile` Avro schema.
+#
+# + newSchema - The new schema to set as active
+isolated function setActiveCustomerProfileSchema(string newSchema) {
+    lock {
+        activeCustomerProfileSchema = newSchema;
+    }
+}
+
+# Appends a promotion decision to the in-memory audit log.
+#
+# + decision - The decision to record
+isolated function recordPromotionDecision(PromotionDecision decision) {
+    lock {
+        promotionAuditLog.push(decision.clone());
+    }
+}
+
+# Returns a snapshot of all recorded schema promotion decisions.
+#
+# + return - An array of recorded `PromotionDecision` records
+public isolated function getPromotionAuditLog() returns PromotionDecision[] {
+    lock {
+        return promotionAuditLog.clone();
+    }
 }

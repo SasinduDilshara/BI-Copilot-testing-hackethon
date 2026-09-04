@@ -14,3 +14,6 @@ configurable string schemaRegistryApiSecret = ?;
 
 // Subject under which the CustomerProfile value schema is registered.
 final string customerProfileValueSubject = "customer-profile-value";
+
+// HTTP listener configuration for the schema promotion endpoint.
+configurable int httpListenerPort = 8080;

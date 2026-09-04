@@ -53,3 +53,36 @@ public type PublishError distinct error;
 
 # Error raised when consuming messages from Kafka fails.
 public type ConsumeError distinct error;
+
+# Error raised when a schema promotion operation fails unexpectedly (e.g. registry unreachable).
+public type PromotionError distinct error;
+
+# Error raised when a candidate schema is rejected due to an incompatibility with the active schema.
+public type IncompatibleSchemaError distinct error;
+
+# Outcome of a schema promotion decision, used as the audit record.
+public type PromotionOutcome "APPROVED"|"REJECTED";
+
+# Represents the audit record of a schema promotion decision for a subject.
+#
+# + subject - The schema registry subject the decision applies to
+# + outcome - Whether the candidate schema was approved and promoted, or rejected
+# + reason - Human-readable explanation of the decision
+# + schemaId - The registry schema id assigned on approval, absent when rejected
+# + candidateSchema - The candidate schema that was evaluated
+# + decidedAt - The UTC timestamp at which the decision was made
+public type PromotionDecision record {|
+    string subject;
+    PromotionOutcome outcome;
+    string reason;
+    int? schemaId;
+    string candidateSchema;
+    string decidedAt;
+|};
+
+# Request payload for promoting a candidate `CustomerProfile` Avro schema.
+#
+# + candidateSchema - The candidate Avro schema, in JSON `string` format, to evaluate and promote
+public type PromotionRequest record {|
+    string candidateSchema;
+|};

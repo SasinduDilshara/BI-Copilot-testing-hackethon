@@ -36,3 +36,10 @@ final cregistry:Client schemaRegistryClient = check new ({
         "basic.auth.user.info": string `${schemaRegistryApiKey}:${schemaRegistryApiSecret}`
     }
 });
+
+// The currently active CustomerProfile schema for the `customer-profile-value` subject. Only
+// updated when a candidate schema is found compatible and successfully promoted.
+isolated string activeCustomerProfileSchema = customerProfileAvroSchema;
+
+// In-memory audit trail of schema promotion decisions (approved and rejected).
+isolated PromotionDecision[] promotionAuditLog = [];
