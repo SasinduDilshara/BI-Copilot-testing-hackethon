@@ -10,3 +10,14 @@ type UploadManifest record {|
     int totalFiles;
     int totalBytes;
 |};
+
+// Represents a single dated archive directory that was pruned during retention cleanup.
+type PrunedArchiveEntry record {|
+    string archiveDate;
+    int fileCount;
+|};
+
+// Summary report produced after applying the retention policy to the archive.
+type RetentionReport record {|
+    PrunedArchiveEntry[] prunedArchives;
+|};
