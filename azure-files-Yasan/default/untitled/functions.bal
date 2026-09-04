@@ -17,21 +17,39 @@ function validateInvoiceLine(InvoiceLine invoiceLine) returns error? {
     return;
 }
 
-# Validates every already-bound invoice line of an invoice CSV file.
+# Binds and validates every data row of an invoice CSV file, streamed row by row so that a
+# malformed row (for example a non-numeric quantity or an unsupported currency) surfaces as a
+# stream element error instead of aborting dispatch to this handler.
 #
-# + fileName - Name of the invoice file being validated, used for error reporting
-# + invoiceLines - Invoice lines bound natively from the CSV data rows
-# + return - The parse result, containing either the validated lines, or a structured file error
-function parseInvoiceFile(string fileName, InvoiceLine[] invoiceLines) returns InvoiceParseResult {
-    foreach int rowIndex in 0 ..< invoiceLines.length() {
-        InvoiceLine invoiceLine = invoiceLines[rowIndex];
-        int csvLineNo = rowIndex + 2;
+# + fileName - Name of the invoice file being processed, used for error reporting
+# + invoiceLineStream - Invoice lines bound natively from the CSV data rows, row by row
+# + return - The parse result, containing either the validated lines or a structured file error,
+# or an error when reading the underlying stream itself fails
+function parseInvoiceFile(string fileName, stream<InvoiceLine, error?> invoiceLineStream) returns InvoiceParseResult|error {
+    InvoiceLine[] invoiceLines = [];
+    int csvLineNo = 1;
 
+    while true {
+        csvLineNo += 1;
+        record {|InvoiceLine value;|}|error? nextRow = invoiceLineStream.next();
+
+        if nextRow is () {
+            break;
+        }
+
+        if nextRow is error {
+            InvoiceFileError fileError = {fileName, lineNo: csvLineNo, reason: string `binding failed: ${nextRow.message()}`};
+            return {lines: [], fileError};
+        }
+
+        InvoiceLine invoiceLine = nextRow.value;
         error? validationResult = validateInvoiceLine(invoiceLine);
         if validationResult is error {
             InvoiceFileError fileError = {fileName, lineNo: csvLineNo, reason: string `validation failed: ${validationResult.message()}`};
             return {lines: [], fileError};
         }
+
+        invoiceLines.push(invoiceLine);
     }
 
     return {lines: invoiceLines};

@@ -10,10 +10,10 @@ service files:Service /inbound on invoiceShareListener {
         afterProcess: {moveTo: "/processed"},
         afterError: {moveTo: "/error"}
     }
-    remote function onFileCsv(InvoiceLine[] content, files:FileInfo fileInfo, files:Caller caller) returns error? {
+    remote function onFileCsv(stream<InvoiceLine, error?> content, files:FileInfo fileInfo, files:Caller caller) returns error? {
         string fileName = fileInfo.name;
 
-        InvoiceParseResult parseResult = parseInvoiceFile(fileName, content);
+        InvoiceParseResult parseResult = check parseInvoiceFile(fileName, content);
         InvoiceFileError? fileError = parseResult.fileError;
         if fileError is InvoiceFileError {
             log:printError("invoice file processing failed",
