@@ -1,7 +1,58 @@
 import ballerina/lang.regexp;
 
 // Matches ISO 8601 timestamps such as 2026-09-04T03:54:49Z or with offsets.
-final regexp:RegExp isoTimestampPattern = re `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$`;
+final regexp:RegExp isoTimestampPattern = check regexp:fromString("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$");
+
+# Tracks device health counters for the telemetry service in a concurrency-safe manner.
+public isolated class DeviceHealthCounters {
+    private int messagesReceived = 0;
+    private int messagesRejected = 0;
+    private int breachesDetected = 0;
+    private int alertsPublished = 0;
+
+    # Increments the count of messages received from the broker.
+    public isolated function incrementMessagesReceived() {
+        lock {
+            self.messagesReceived += 1;
+        }
+    }
+
+    # Increments the count of messages rejected due to malformed payloads.
+    public isolated function incrementMessagesRejected() {
+        lock {
+            self.messagesRejected += 1;
+        }
+    }
+
+    # Increments the count of threshold breaches detected.
+    public isolated function incrementBreachesDetected() {
+        lock {
+            self.breachesDetected += 1;
+        }
+    }
+
+    # Increments the count of alerts successfully published.
+    public isolated function incrementAlertsPublished() {
+        lock {
+            self.alertsPublished += 1;
+        }
+    }
+
+    # Builds an online DeviceHealth snapshot from the current counter values.
+    #
+    # + return - The current DeviceHealth snapshot
+    public isolated function snapshot() returns DeviceHealth {
+        lock {
+            return {
+                status: "online",
+                messagesReceived: self.messagesReceived,
+                messagesRejected: self.messagesRejected,
+                breachesDetected: self.breachesDetected,
+                alertsPublished: self.alertsPublished
+            };
+        }
+    }
+}
 
 # Parses and validates a raw MQTT payload into a typed TemperatureReading.
 # Rejects payloads that are not valid JSON, are missing required fields,

@@ -11,6 +11,7 @@ final string testDeviceId = "dev-integration-1";
 final string testCargoId = "cargo-integration-1";
 
 isolated map<string> receivedAlertPayloads = {};
+isolated string? receivedHealthPayload = ();
 
 mqtt:ClientConfiguration testPublisherConfig = {
     connectionConfig: {
@@ -29,6 +30,20 @@ service class AlertCaptureService {
         string payloadText = check string:fromBytes(message.payload);
         lock {
             receivedAlertPayloads[testDeviceId] = payloadText;
+        }
+    }
+
+    remote function onError(mqtt:Error err) returns error? {
+    }
+}
+
+service class HealthCaptureService {
+    *mqtt:Service;
+
+    remote function onMessage(mqtt:Message message, mqtt:Caller caller) returns error? {
+        string payloadText = check string:fromBytes(message.payload);
+        lock {
+            receivedHealthPayload = payloadText;
         }
     }
 
@@ -109,4 +124,42 @@ function testMalformedPayloadDoesNotProduceAlert() returns error? {
         capturedAlertPayload = receivedAlertPayloads[testDeviceId];
     }
     test:assertTrue(capturedAlertPayload is (), msg = "Malformed payloads must not result in a published alert");
+}
+
+@test:Config {dependsOn: [testMalformedPayloadDoesNotProduceAlert]}
+function testRetainedDeviceHealthIsPublishedOnBroker() returns error? {
+    mqtt:ListenerConfiguration healthListenerConfig = {
+        connectionConfig: {
+            username: testMqttUsername,
+            password: testMqttPassword,
+            secureSocket: {
+                cert: testMqttTrustedCertPath
+            }
+        },
+        manualAcks: false
+    };
+
+    // A fresh subscriber connecting after the fact should immediately receive the retained health snapshot.
+    mqtt:Listener healthListener = check new (testMqttBrokerUrl, "test-health-subscriber-1",
+            {topic: deviceHealthTopic, qos: 1}, healthListenerConfig);
+    check healthListener.attach(new HealthCaptureService());
+    check healthListener.'start();
+
+    // Allow time for the retained message to be delivered on subscription.
+    runtime:sleep(3);
+
+    string? capturedHealthPayload;
+    lock {
+        capturedHealthPayload = receivedHealthPayload;
+    }
+    test:assertTrue(capturedHealthPayload is string, msg = "A retained device health snapshot should be available on subscription");
+
+    if capturedHealthPayload is string {
+        json healthJson = check capturedHealthPayload.fromJsonString();
+        DeviceHealth health = check healthJson.cloneWithType(DeviceHealth);
+        test:assertEquals(health.status, "online", msg = "Retained health snapshot should report the service as online");
+        test:assertTrue(health.messagesReceived > 0, msg = "Retained health snapshot should reflect messages already processed");
+    }
+
+    check healthListener.gracefulStop();
 }

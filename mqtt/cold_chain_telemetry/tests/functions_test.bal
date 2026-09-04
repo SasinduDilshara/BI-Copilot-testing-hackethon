@@ -89,3 +89,70 @@ function testBuildTemperatureAlert() {
     test:assertEquals(alert.celsius, 15.0d, msg = "Alert should carry the recorded celsius value");
     test:assertEquals(alert.thresholdCelsius, maxAllowedCelsius, msg = "Alert should carry the configured threshold");
 }
+
+@test:Config {}
+function testHealthCountersInitialSnapshotIsZeroed() {
+    DeviceHealthCounters counters = new;
+    DeviceHealth health = counters.snapshot();
+
+    test:assertEquals(health.status, "online", msg = "Fresh counters should report an online status");
+    test:assertEquals(health.messagesReceived, 0, msg = "Fresh counters should start with zero messages received");
+    test:assertEquals(health.messagesRejected, 0, msg = "Fresh counters should start with zero messages rejected");
+    test:assertEquals(health.breachesDetected, 0, msg = "Fresh counters should start with zero breaches detected");
+    test:assertEquals(health.alertsPublished, 0, msg = "Fresh counters should start with zero alerts published");
+}
+
+@test:Config {}
+function testHealthCountersIncrementMessagesReceived() {
+    DeviceHealthCounters counters = new;
+    counters.incrementMessagesReceived();
+    counters.incrementMessagesReceived();
+    DeviceHealth health = counters.snapshot();
+
+    test:assertEquals(health.messagesReceived, 2, msg = "messagesReceived should reflect the number of increments");
+}
+
+@test:Config {}
+function testHealthCountersIncrementMessagesRejected() {
+    DeviceHealthCounters counters = new;
+    counters.incrementMessagesRejected();
+    DeviceHealth health = counters.snapshot();
+
+    test:assertEquals(health.messagesRejected, 1, msg = "messagesRejected should reflect the number of increments");
+}
+
+@test:Config {}
+function testHealthCountersIncrementBreachesDetected() {
+    DeviceHealthCounters counters = new;
+    counters.incrementBreachesDetected();
+    counters.incrementBreachesDetected();
+    counters.incrementBreachesDetected();
+    DeviceHealth health = counters.snapshot();
+
+    test:assertEquals(health.breachesDetected, 3, msg = "breachesDetected should reflect the number of increments");
+}
+
+@test:Config {}
+function testHealthCountersIncrementAlertsPublished() {
+    DeviceHealthCounters counters = new;
+    counters.incrementAlertsPublished();
+    DeviceHealth health = counters.snapshot();
+
+    test:assertEquals(health.alertsPublished, 1, msg = "alertsPublished should reflect the number of increments");
+}
+
+@test:Config {}
+function testHealthCountersTrackIndependently() {
+    DeviceHealthCounters counters = new;
+    counters.incrementMessagesReceived();
+    counters.incrementMessagesReceived();
+    counters.incrementMessagesRejected();
+    counters.incrementBreachesDetected();
+    counters.incrementAlertsPublished();
+    DeviceHealth health = counters.snapshot();
+
+    test:assertEquals(health.messagesReceived, 2, msg = "messagesReceived should be tracked independently");
+    test:assertEquals(health.messagesRejected, 1, msg = "messagesRejected should be tracked independently");
+    test:assertEquals(health.breachesDetected, 1, msg = "breachesDetected should be tracked independently");
+    test:assertEquals(health.alertsPublished, 1, msg = "alertsPublished should be tracked independently");
+}

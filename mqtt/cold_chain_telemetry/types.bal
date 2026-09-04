@@ -15,3 +15,12 @@ public type TemperatureAlert record {|
     string recordedAt;
     string message;
 |};
+
+// Represents the retained device health snapshot published for the telemetry service.
+public type DeviceHealth record {|
+    string status;
+    int messagesReceived;
+    int messagesRejected;
+    int breachesDetected;
+    int alertsPublished;
+|};
