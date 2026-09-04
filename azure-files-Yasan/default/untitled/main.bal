@@ -10,7 +10,7 @@ service files:Service /inbound on invoiceShareListener {
         afterProcess: {moveTo: "/processed"},
         afterError: {moveTo: "/error"}
     }
-    remote function onFileCsv(string[][] content, files:FileInfo fileInfo, files:Caller caller) returns error? {
+    remote function onFileCsv(InvoiceLine[] content, files:FileInfo fileInfo, files:Caller caller) returns error? {
         string fileName = fileInfo.name;
 
         InvoiceParseResult parseResult = parseInvoiceFile(fileName, content);

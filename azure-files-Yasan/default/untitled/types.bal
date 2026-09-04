@@ -1,3 +1,5 @@
+import ballerina/data.csv;
+
 # Supported invoice currencies.
 public enum Currency {
     USD,
@@ -5,7 +7,8 @@ public enum Currency {
     GBP
 }
 
-# A single validated invoice line item bound from a CSV data row.
+# A single validated invoice line item bound directly from a CSV data row.
+# Field names differing from the CSV column titles are mapped with `@csv:Name`.
 #
 # + invoiceId - Invoice identifier from the 'Invoice ID' column
 # + vendorId - Vendor identifier from the 'Vendor ID' column
@@ -16,13 +19,21 @@ public enum Currency {
 # + amount - Total amount from the 'Amount' column, must equal quantity * unitPrice within 0.01
 # + currency - Currency code from the 'Currency' column
 public type InvoiceLine record {|
+    @csv:Name {value: "Invoice ID"}
     string invoiceId;
+    @csv:Name {value: "Vendor ID"}
     string vendorId;
+    @csv:Name {value: "Line No"}
     int lineNo;
+    @csv:Name {value: "Description"}
     string description;
+    @csv:Name {value: "Quantity"}
     int quantity;
+    @csv:Name {value: "Unit Price"}
     decimal unitPrice;
+    @csv:Name {value: "Amount"}
     decimal amount;
+    @csv:Name {value: "Currency"}
     Currency currency;
 |};
 
