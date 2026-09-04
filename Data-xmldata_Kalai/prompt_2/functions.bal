@@ -1,4 +1,6 @@
 import ballerina/data.xmldata;
+import ballerina/file;
+import ballerina/io;
 import ballerina/log;
 
 # Parses the raw patient XML payload into a Patient record.
@@ -8,6 +10,58 @@ import ballerina/log;
 function parsePatientXml(string xmlPayload) returns Patient|error {
     Patient patient = check xmldata:parseString(xmlPayload);
     return patient;
+}
+
+# Validates an XML document string against an XSD schema string.
+#
+# xmldata:validate requires the schema to be supplied as a file path, so the given
+# XSD content is written to a temporary file which is removed once validation completes.
+#
+# + xmlDocument - The XML document content to validate
+# + xsdSchema - The XSD schema content to validate against
+# + return - The schema validation result, or an error if the inputs could not be processed
+function validateXmlAgainstSchema(string xmlDocument, string xsdSchema) returns SchemaValidationResult|error {
+    xml xmlValue = check xml:fromString(xmlDocument);
+
+    string tempSchemaPath = check file:createTemp(suffix = ".xsd");
+    check io:fileWriteString(tempSchemaPath, xsdSchema);
+
+    xmldata:Error? validationResult = xmldata:validate(xmlValue, tempSchemaPath);
+
+    error? removeResult = file:remove(tempSchemaPath);
+    if removeResult is error {
+        log:printWarn("Failed to remove temporary schema file: " + tempSchemaPath, 'error = removeResult);
+    }
+
+    if validationResult is xmldata:Error {
+        return {
+            valid: false,
+            validationErrors: [validationResult.message()]
+        };
+    }
+
+    return {
+        valid: true,
+        validationErrors: []
+    };
+}
+
+# Projects a patient XML document into a PatientSummary, extracting only the
+# patient ID, full name, and birth date while ignoring contact and extension fields.
+#
+# + xmlPayload - The raw XML string representing a patient record
+# + return - The projected PatientSummary, or an error if parsing fails
+function projectPatientSummary(string xmlPayload) returns PatientSummary|error {
+    xml xmlValue = check xml:fromString(xmlPayload);
+    PatientProjection projection = check xmldata:parseAsType(xmlValue, {allowDataProjection: true});
+
+    string fullName = projection.name.given.value + " " + projection.name.family.value;
+
+    return {
+        patientId: projection.id.value,
+        fullName,
+        birthDate: projection.birthDate.value
+    };
 }
 
 # Rebuilds a canonical Patient record from a stored patient, for XML export.

@@ -93,3 +93,35 @@ public type BatchIngestResult record {|
     int failedCount;
     int[] failedLines;
 |};
+
+# Represents the request body for XML schema validation.
+public type SchemaValidationRequest record {|
+    string xmlDocument;
+    string xsdSchema;
+|};
+
+# Represents the outcome of an XML schema validation request.
+public type SchemaValidationResult record {|
+    boolean valid;
+    string[] validationErrors;
+|};
+
+# Represents a closed projection of the Patient XML used to extract only the
+# id, name, and birthDate elements via xmldata:parseAsType, ignoring contact
+# and extension fields.
+@xmldata:Namespace {
+    uri: "http://hl7.hospital.com/fhir"
+}
+type PatientProjection record {|
+    AttributeValue id;
+    PatientName name;
+    @xmldata:Name {value: "birthDate"}
+    AttributeValue birthDate;
+|};
+
+# Represents a projected summary of a patient, excluding contact and extension fields.
+public type PatientSummary record {|
+    string patientId;
+    string fullName;
+    string birthDate;
+|};
