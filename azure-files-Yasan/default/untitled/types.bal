@@ -67,3 +67,16 @@ public type InvoiceParseResult record {|
     InvoiceLine[] lines;
     InvoiceFileError fileError?;
 |};
+
+# A vendor master-data update bound directly from a VENDOR-<id>.json file.
+#
+# + vendorId - Unique identifier of the vendor
+# + legalName - Registered legal name of the vendor
+# + country - Country of registration of the vendor
+# + active - Whether the vendor is currently active
+public type VendorUpdate record {|
+    string vendorId;
+    string legalName;
+    string country;
+    boolean active;
+|};

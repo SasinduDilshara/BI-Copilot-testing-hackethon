@@ -2,13 +2,15 @@ import ballerina/log;
 import ballerinax/azure.storage.files;
 
 @files:ServiceConfig {
-    fileNamePattern: "^INV-\\d+\\.csv$"
+    recursive: true,
+    minFileAgeSeconds: 10
 }
 service files:Service /inbound on invoiceShareListener {
 
     @files:FunctionConfig {
-        afterProcess: {moveTo: "/processed"},
-        afterError: {moveTo: "/error"}
+        fileNamePattern: "^INV-\\d+\\.csv$",
+        afterProcess: {moveTo: "/processed", preserveSubDirs: true},
+        afterError: {moveTo: "/error", preserveSubDirs: true}
     }
     remote function onFileCsv(stream<InvoiceLine, error?> content, files:FileInfo fileInfo, files:Caller caller) returns error? {
         string fileName = fileInfo.name;
@@ -25,6 +27,19 @@ service files:Service /inbound on invoiceShareListener {
 
         InvoiceFileSummary summary = buildInvoiceSummary(fileName, parseResult.lines);
         log:printInfo("invoice file processed", summary = summary);
+        return;
+    }
+
+    @files:FunctionConfig {
+        fileNamePattern: "^VENDOR-\\d+\\.json$",
+        afterProcess: {moveTo: "/processed", preserveSubDirs: true},
+        afterError: {moveTo: "/error", preserveSubDirs: true}
+    }
+    remote function onFileJson(VendorUpdate content, files:FileInfo fileInfo, files:Caller caller) returns error? {
+        string fileName = fileInfo.name;
+
+        int vendorStoreSize = upsertVendor(vendorStore, content);
+        log:printInfo("vendor update processed", fileName = fileName, vendorId = content.vendorId, vendorStoreSize = vendorStoreSize);
         return;
     }
 

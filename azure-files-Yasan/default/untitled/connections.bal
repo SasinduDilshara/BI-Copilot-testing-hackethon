@@ -7,3 +7,6 @@ listener files:Listener invoiceShareListener = check new (invoiceShareName, {
     },
     pollingInterval: pollingIntervalSeconds
 });
+
+// In-memory vendor master-data store, keyed by vendorId.
+map<VendorUpdate> vendorStore = {};

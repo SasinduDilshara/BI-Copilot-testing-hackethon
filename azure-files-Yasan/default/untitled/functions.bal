@@ -55,6 +55,16 @@ function parseInvoiceFile(string fileName, stream<InvoiceLine, error?> invoiceLi
     return {lines: invoiceLines};
 }
 
+# Upserts a vendor master-data update into the in-memory vendor store.
+#
+# + vendorStore - The in-memory map of vendor id to vendor update, keyed by vendorId
+# + vendorUpdate - The vendor update to upsert
+# + return - The resulting size of the vendor store after the upsert
+function upsertVendor(map<VendorUpdate> vendorStore, VendorUpdate vendorUpdate) returns int {
+    vendorStore[vendorUpdate.vendorId] = vendorUpdate;
+    return vendorStore.length();
+}
+
 # Builds the one-line typed summary for a successfully processed invoice file.
 #
 # + fileName - Name of the invoice file that was processed
