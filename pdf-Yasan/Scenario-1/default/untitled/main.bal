@@ -1,0 +1,168 @@
+import ballerina/http;
+import ballerina/lang.array;
+import ballerina/pdf;
+
+// Reads the uploaded PDF bytes from the request in-memory and extracts the per-page text content.
+function extractPdfPages(http:Request request) returns string[]|BadRequestError {
+    byte[]|http:ClientError uploadedBytes = request.getBinaryPayload();
+    if uploadedBytes is http:ClientError {
+        return {
+            body: {
+                message: string `Failed to read the uploaded document: ${uploadedBytes.message()}`
+            }
+        };
+    }
+
+    string[]|pdf:Error pages = pdf:extractText(uploadedBytes);
+    if pages is pdf:Error {
+        return {
+            body: {
+                message: string `Failed to extract text from the uploaded document: ${pages.message()}`
+            }
+        };
+    }
+
+    return pages;
+}
+
+// Reads the uploaded PDF bytes from the request in-memory and renders every page to a Base64-encoded PNG image.
+function renderPdfPagesToImages(http:Request request) returns string[]|BadRequestError {
+    byte[]|http:ClientError uploadedBytes = request.getBinaryPayload();
+    if uploadedBytes is http:ClientError {
+        return {
+            body: {
+                message: string `Failed to read the uploaded document: ${uploadedBytes.message()}`
+            }
+        };
+    }
+
+    string[]|pdf:Error base64Images = pdf:toImages(uploadedBytes);
+    if base64Images is pdf:Error {
+        return {
+            body: {
+                message: string `Failed to render the uploaded document: ${base64Images.message()}`
+            }
+        };
+    }
+
+    return base64Images;
+}
+
+service /documents on new http:Listener(8090) {
+
+    # Builds an HTML invoice from the request payload and converts it to a PDF document.
+    #
+    # + invoiceRequest - The invoice data used to render the document
+    # + return - The generated PDF bytes, or a typed bad request error if the PDF could not be generated
+    resource function post invoices/render(InvoiceRequest invoiceRequest) returns http:Response|BadRequestError {
+        string invoiceHtml = buildInvoiceHtml(invoiceRequest);
+        byte[]|pdf:Error pdfBytes = pdf:parseHtml(invoiceHtml, pageSize = pdf:A4, margins = {
+            top: 36,
+            right: 36,
+            bottom: 36,
+            left: 36
+        });
+        if pdfBytes is pdf:Error {
+            return {
+                body: {
+                    message: string `Failed to generate the invoice PDF: ${pdfBytes.message()}`
+                }
+            };
+        }
+
+        http:Response response = new;
+        response.setBinaryPayload(pdfBytes, contentType = "application/pdf");
+        return response;
+    }
+
+    # Extracts text content from each page of an uploaded PDF document.
+    #
+    # + request - The inbound request carrying the raw PDF bytes
+    # + return - The extracted per-page text content, or a typed bad request error if the PDF could not be processed
+    resource function post documents/extract(http:Request request) returns ExtractResponse|BadRequestError {
+        string[]|BadRequestError pages = extractPdfPages(request);
+        if pages is BadRequestError {
+            return pages;
+        }
+
+        ExtractedPage[] extractedPages = [];
+        foreach int i in 0 ..< pages.length() {
+            extractedPages.push({page: i + 1, text: pages[i]});
+        }
+
+        return {
+            pageCount: pages.length(),
+            pages: extractedPages
+        };
+    }
+
+    # Searches the text content of an uploaded PDF document for a query string.
+    #
+    # + request - The inbound request carrying the raw PDF bytes
+    # + q - The case-insensitive query string to search for
+    # + return - The matching pages with surrounding snippets, or a typed bad request error
+    resource function post documents/search(http:Request request, string q) returns SearchResponse|BadRequestError {
+        if q.trim().length() == 0 {
+            return {
+                body: {
+                    message: "Query parameter 'q' must not be empty."
+                }
+            };
+        }
+
+        string[]|BadRequestError pages = extractPdfPages(request);
+        if pages is BadRequestError {
+            return pages;
+        }
+
+        SearchMatch[] matches = [];
+        foreach int i in 0 ..< pages.length() {
+            string? snippet = buildSnippet(pages[i], q);
+            if snippet is string {
+                matches.push({page: i + 1, snippet: snippet});
+            }
+        }
+
+        return {
+            query: q,
+            matches: matches
+        };
+    }
+
+    # Renders a single page of an uploaded PDF document to a PNG image.
+    #
+    # + request - The inbound request carrying the raw PDF bytes
+    # + page - The 1-based page number to render (defaults to 1)
+    # + return - The rendered PNG image bytes, a typed not-found error if the page is out of range,
+    # or a typed bad request error if the PDF could not be processed
+    resource function post documents/thumbnail(http:Request request, int page = 1) returns http:Response|BadRequestError|NotFoundError {
+        string[]|BadRequestError base64Images = renderPdfPagesToImages(request);
+        if base64Images is BadRequestError {
+            return base64Images;
+        }
+
+        if page < 1 || page > base64Images.length() {
+            NotFoundError notFoundError = {
+                body: {
+                    message: string `Page ${page} is out of range. The document has ${base64Images.length()} page(s).`
+                }
+            };
+            return notFoundError;
+        }
+
+        string base64Image = base64Images[page - 1];
+        byte[]|error imageBytes = array:fromBase64(base64Image);
+        if imageBytes is error {
+            BadRequestError badRequestError = {
+                body: {
+                    message: string `Failed to decode the rendered image: ${imageBytes.message()}`
+                }
+            };
+            return badRequestError;
+        }
+
+        http:Response response = new;
+        response.setBinaryPayload(imageBytes, contentType = "image/png");
+        return response;
+    }
+}
