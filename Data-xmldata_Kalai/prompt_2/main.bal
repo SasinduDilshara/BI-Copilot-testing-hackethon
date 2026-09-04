@@ -1,3 +1,4 @@
+import ballerina/data.xmldata;
 import ballerina/http;
 
 service /patients on new http:Listener(9090) {
@@ -26,5 +27,41 @@ service /patients on new http:Listener(9090) {
             status: status,
             normalizedName: normalizedName
         };
+    }
+
+    # Exports a stored patient as an XML document.
+    #
+    # + patientId - The ID of the patient to export
+    # + return - The patient XML document, a not-found response, or an internal error
+    resource function get [string patientId]/export() returns xml|http:NotFound|http:InternalServerError {
+        StoredPatient? storedPatient = getStoredPatient(patientId);
+        if storedPatient is () {
+            return <http:NotFound>{
+                body: {
+                    message: "Patient not found: " + patientId
+                }
+            };
+        }
+
+        Patient patient = toPatient(storedPatient);
+        xml|xmldata:Error patientXml = xmldata:toXml(patient);
+        if patientXml is xmldata:Error {
+            return <http:InternalServerError>{
+                body: {
+                    message: "Failed to serialize patient to XML: " + patientXml.message()
+                }
+            };
+        }
+
+        return patientXml;
+    }
+
+    # Ingests multiple patient records supplied as a multiline XML string body,
+    # where each non-blank line is a separate patient XML document.
+    #
+    # + payload - The multiline string body containing one patient XML document per line
+    # + return - The batch ingestion result summarizing successes and failures
+    resource function post batch(@http:Payload string payload) returns BatchIngestResult {
+        return processBatch(payload);
     }
 }

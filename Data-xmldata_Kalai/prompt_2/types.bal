@@ -85,3 +85,11 @@ public type PatientIngestResponse record {|
     string status;
     string normalizedName;
 |};
+
+# Represents the outcome of a batch patient ingestion request.
+public type BatchIngestResult record {|
+    int totalSubmitted;
+    int successCount;
+    int failedCount;
+    int[] failedLines;
+|};
