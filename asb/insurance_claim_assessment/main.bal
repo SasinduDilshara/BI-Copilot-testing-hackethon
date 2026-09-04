@@ -25,4 +25,31 @@ service /claims on new http:Listener(httpPort) {
         };
         return countersResponse;
     }
+
+    // Lists claims currently deferred for manual review, including the sequence
+    // numbers needed to receive them later.
+    resource function get deferred() returns DeferredClaimsResponse {
+        DeferredClaim[] deferredClaims = getDeferredClaims();
+        DeferredClaimsResponse deferredClaimsResponse = {
+            body: deferredClaims
+        };
+        return deferredClaimsResponse;
+    }
+
+    // Receives a previously deferred manual-review claim by its Service Bus sequence
+    // number, finalizes its assessment, publishes the result, and completes the message.
+    resource function post deferred/[int sequenceNumber]/receive() returns ClaimAssessmentResultResponse|DeferredClaimNotFoundResponse {
+        ClaimAssessmentResult|error result = receiveDeferredClaim(sequenceNumber);
+        if result is error {
+            DeferredClaimNotFoundResponse notFoundResponse = {
+                body: {message: "Failed to receive deferred claim: " + result.message()}
+            };
+            return notFoundResponse;
+        }
+
+        ClaimAssessmentResultResponse resultResponse = {
+            body: result
+        };
+        return resultResponse;
+    }
 }

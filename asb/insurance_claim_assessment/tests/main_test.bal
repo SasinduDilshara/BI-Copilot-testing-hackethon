@@ -11,7 +11,8 @@ function waitForCounterIncrease(string counterName, int baselineValue, int maxAt
     while attempt < maxAttempts {
         OperationalCounters counters = check testClaimsClient->/health.get();
         int currentValue = counterName == "completed" ? counters.completedCount :
-            counterName == "deadLettered" ? counters.deadLetteredCount : counters.abandonedCount;
+            counterName == "deadLettered" ? counters.deadLetteredCount :
+            counterName == "abandoned" ? counters.abandonedCount : counters.deferredCount;
         if currentValue > baselineValue {
             return counters;
         }
@@ -167,6 +168,49 @@ function testScoreClaimProducesAssessmentResult() returns error? {
     test:assertEquals(result.decision, "MANUAL_REVIEW", msg = "Expected a high-value claim to require manual review");
 }
 
+// Settlement path: a claim scored as MANUAL_REVIEW is deferred (not completed or
+// abandoned) and its sequence number is tracked; receiving it later by that sequence
+// number finalizes and completes it.
+@test:Config {}
+function testManualReviewClaimIsDeferredThenReceived() returns error? {
+    OperationalCounters baselineCounters = check testClaimsClient->/health.get();
+
+    string manualReviewClaimId = uniqueClaimId("CLM-MANUAL-REVIEW");
+    ClaimSubmissionBatch batch = {
+        claims: [
+            {
+                claimId: manualReviewClaimId,
+                policyNumber: "POL-MANUAL-REVIEW",
+                claimantId: "CUST-MANUAL-REVIEW",
+                claimAmount: 75000.00d,
+                incidentDate: "2026-08-12"
+            }
+        ]
+    };
+
+    http:Response response = check testClaimsClient->/batchSubmissions.post(batch);
+    test:assertEquals(response.statusCode, http:STATUS_ACCEPTED, msg = "Expected the claim batch submission to be accepted");
+
+    OperationalCounters countersAfterDefer = check waitForCounterIncrease("deferred", baselineCounters.deferredCount);
+    test:assertTrue(countersAfterDefer.deferredCount > baselineCounters.deferredCount, msg = "Expected deferredCount to increase for a manual-review claim");
+    test:assertEquals(countersAfterDefer.completedCount, baselineCounters.completedCount, msg = "Expected a deferred manual-review claim to not be completed immediately");
+    test:assertEquals(countersAfterDefer.abandonedCount, baselineCounters.abandonedCount, msg = "Expected a deferred manual-review claim to never go through the abandon path");
+
+    DeferredClaim[] deferredClaims = check testClaimsClient->/deferred.get();
+    DeferredClaim[] matchingDeferredClaims = from DeferredClaim deferredClaim in deferredClaims
+        where deferredClaim.claimId == manualReviewClaimId
+        select deferredClaim;
+    test:assertEquals(matchingDeferredClaims.length(), 1, msg = "Expected exactly one tracked deferred claim for the manual-review claim");
+
+    DeferredClaim trackedDeferredClaim = matchingDeferredClaims[0];
+    ClaimAssessmentResult finalResult = check testClaimsClient->/deferred/[trackedDeferredClaim.sequenceNumber]/receive.post({});
+    test:assertEquals(finalResult.claimId, manualReviewClaimId, msg = "Unexpected claimId in the finalized assessment result");
+    test:assertEquals(finalResult.decision, "MANUAL_REVIEW_COMPLETED", msg = "Expected the finalized decision to indicate manual review completion");
+
+    OperationalCounters countersAfterReceive = check waitForCounterIncrease("completed", baselineCounters.completedCount);
+    test:assertTrue(countersAfterReceive.completedCount > baselineCounters.completedCount, msg = "Expected completedCount to increase once the deferred claim is received");
+}
+
 // Lock-renewal path: an assessment that runs longer than the queue's configured lock
 // duration must still complete successfully, because the worker keeps renewing the
 // claim message's lock in the background while scoring is in progress. The
@@ -181,7 +225,8 @@ function testScoreClaimProducesAssessmentResult() returns error? {
     dependsOn: [
         testSubmitClaimBatchAccepted,
         testValidClaimIsCompletedAfterAssessmentPublication,
-        testInvalidClaimIsDeadLettered
+        testInvalidClaimIsDeadLettered,
+        testManualReviewClaimIsDeferredThenReceived
     ]
 }
 function testSlowAssessmentIsCompletedAfterLockRenewal() returns error? {

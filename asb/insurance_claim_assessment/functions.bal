@@ -149,9 +149,70 @@ function recordLockRenewalFailed() {
     }
 }
 
+// Increments the deferred-claim counter.
+function recordDeferred() {
+    lock {
+        operationalCounters.deferredCount += 1;
+    }
+}
+
+// Records a claim deferred for manual review, keyed by its Service Bus sequence number.
+function recordDeferredClaim(DeferredClaim deferredClaim) {
+    lock {
+        deferredManualReviewClaims[deferredClaim.sequenceNumber.toString()] = deferredClaim.clone();
+    }
+}
+
+// Removes a deferred claim's tracked metadata once it has been received and settled.
+function removeDeferredClaim(int sequenceNumber) {
+    lock {
+        _ = deferredManualReviewClaims.removeIfHasKey(sequenceNumber.toString());
+    }
+}
+
+// Returns a snapshot list of claims currently deferred for manual review.
+function getDeferredClaims() returns DeferredClaim[] {
+    lock {
+        return deferredManualReviewClaims.toArray().clone();
+    }
+}
+
 // Returns a snapshot copy of the current operational counters.
 function getOperationalCounters() returns OperationalCounters {
     lock {
         return operationalCounters.clone();
     }
+}
+
+// Receives a previously deferred manual-review claim by its Service Bus sequence
+// number, finalizes its assessment, publishes the result, and completes the message.
+// Returns an error if no deferred claim exists for the given sequence number, or if
+// receiving, publishing, or completing fails.
+function receiveDeferredClaim(int sequenceNumber) returns ClaimAssessmentResult|error {
+    asb:Message|asb:Error? deferredMessage = claimsIntakeReceiver->receiveDeferred(sequenceNumber);
+    if deferredMessage is asb:Error {
+        return deferredMessage;
+    }
+    if deferredMessage is () {
+        return error("No deferred claim found for sequence number " + sequenceNumber.toString());
+    }
+
+    anydata messageBody = deferredMessage.body;
+    ClaimSubmission claim = check parseClaimSubmission(messageBody);
+
+    ClaimAssessmentResult finalResult = {
+        claimId: claim.claimId,
+        policyNumber: claim.policyNumber,
+        decision: "MANUAL_REVIEW_COMPLETED",
+        assessedAmount: claim.claimAmount,
+        reason: string `Claim ${claim.claimId} manual review completed`,
+        assessedAt: getCurrentTimestamp()
+    };
+    check publishAssessmentResult(finalResult);
+
+    check claimsIntakeReceiver->complete(deferredMessage);
+
+    removeDeferredClaim(sequenceNumber);
+    recordCompleted();
+    return finalResult;
 }

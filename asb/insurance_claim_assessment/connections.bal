@@ -39,5 +39,11 @@ isolated OperationalCounters operationalCounters = {
     completedCount: 0,
     deadLetteredCount: 0,
     abandonedCount: 0,
-    lockRenewalFailedCount: 0
+    lockRenewalFailedCount: 0,
+    deferredCount: 0
 };
+
+// Tracks claims deferred for manual review, keyed by their Service Bus sequence number
+// (as a string, since map keys must be strings), so they can be retrieved later via the
+// deferred-claims endpoint.
+isolated map<DeferredClaim> deferredManualReviewClaims = {};

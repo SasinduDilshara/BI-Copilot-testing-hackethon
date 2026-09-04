@@ -87,12 +87,39 @@ function processClaimMessage(asb:Message claimMessage) returns error? {
         return;
     }
 
+    if assessmentResult.decision == "MANUAL_REVIEW" {
+        return deferClaimForManualReview(claimMessage, assessmentResult);
+    }
+
     asb:Error? completeResult = claimsIntakeReceiver->complete(claimMessage);
     if completeResult is asb:Error {
         log:printError("Failed to complete claim message after publishing assessment result", completeResult, claimId = claim.claimId);
         return completeResult;
     }
     recordCompleted();
+}
+
+// Defers a claim message that has been marked for manual review instead of completing
+// or abandoning it, storing its Service Bus sequence number so it can be retrieved
+// later via the deferred-claims endpoint.
+function deferClaimForManualReview(asb:Message claimMessage, ClaimAssessmentResult assessmentResult) returns error? {
+    int|asb:Error deferResult = claimsIntakeReceiver->defer(claimMessage);
+    if deferResult is asb:Error {
+        log:printError("Failed to defer claim message for manual review", deferResult, claimId = assessmentResult.claimId);
+        return deferResult;
+    }
+
+    int sequenceNumber = deferResult;
+    DeferredClaim deferredClaim = {
+        sequenceNumber: sequenceNumber,
+        claimId: assessmentResult.claimId,
+        policyNumber: assessmentResult.policyNumber,
+        claimAmount: assessmentResult.assessedAmount,
+        deferredAt: getCurrentTimestamp()
+    };
+    recordDeferredClaim(deferredClaim);
+    recordDeferred();
+    log:printInfo("Deferred claim for manual review", claimId = assessmentResult.claimId, sequenceNumber = sequenceNumber);
 }
 
 // Scores the claim and publishes the assessment result while periodically renewing the

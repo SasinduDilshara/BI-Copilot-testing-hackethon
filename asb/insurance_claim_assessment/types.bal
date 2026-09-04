@@ -57,9 +57,35 @@ public type OperationalCounters record {|
     int deadLetteredCount;
     int abandonedCount;
     int lockRenewalFailedCount;
+    int deferredCount;
 |};
 
 public type OperationalCountersResponse record {|
     *http:Ok;
     OperationalCounters body;
+|};
+
+// Metadata about a claim deferred for manual review, keyed by its Service Bus sequence
+// number so it can be retrieved later via the deferred-claims endpoint.
+public type DeferredClaim record {|
+    int sequenceNumber;
+    string claimId;
+    string policyNumber;
+    decimal claimAmount;
+    string deferredAt;
+|};
+
+public type DeferredClaimsResponse record {|
+    *http:Ok;
+    DeferredClaim[] body;
+|};
+
+public type ClaimAssessmentResultResponse record {|
+    *http:Ok;
+    ClaimAssessmentResult body;
+|};
+
+public type DeferredClaimNotFoundResponse record {|
+    *http:NotFound;
+    ClaimBatchError body;
 |};
