@@ -1,6 +1,29 @@
 import ballerina/http;
 import ballerina/pdf;
 
+// Reads the uploaded PDF bytes from the request in-memory and extracts the per-page text content.
+function extractPdfPages(http:Request request) returns string[]|BadRequestError {
+    byte[]|http:ClientError uploadedBytes = request.getBinaryPayload();
+    if uploadedBytes is http:ClientError {
+        return {
+            body: {
+                message: string `Failed to read the uploaded document: ${uploadedBytes.message()}`
+            }
+        };
+    }
+
+    string[]|pdf:Error pages = pdf:extractText(uploadedBytes);
+    if pages is pdf:Error {
+        return {
+            body: {
+                message: string `Failed to extract text from the uploaded document: ${pages.message()}`
+            }
+        };
+    }
+
+    return pages;
+}
+
 service /documents on new http:Listener(8090) {
 
     # Builds an HTML invoice from the request payload and converts it to a PDF document.
