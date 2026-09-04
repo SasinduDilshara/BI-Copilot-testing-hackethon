@@ -31,7 +31,6 @@ service asb:Service on orderCommandListener {
 
     remote function onError(asb:MessageRetrievalError 'error, error asbError) returns error? {
         string retrievalErrorMessage = 'error.message();
-        string underlyingErrorMessage = asbError.message();
-        log:printError("Error occurred while receiving messages from ASB", retrievalErrorMessage = retrievalErrorMessage, underlyingErrorMessage = underlyingErrorMessage);
+        log:printError("Error occurred while receiving messages from ASB", 'error, retrievalErrorMessage = retrievalErrorMessage);
     }
 }
