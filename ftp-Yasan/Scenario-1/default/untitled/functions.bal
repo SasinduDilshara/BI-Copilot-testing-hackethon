@@ -20,39 +20,33 @@ function validateOrderFile(string fileName, OrderLine[] orderLines) returns File
     return {valid: allValid, lines: orderLines};
 }
 
-// Locates the line number of the row that fails to bind into an OrderLine, by matching the raw
-// header and data rows read from the same file. Returns 0 if no such row can be identified.
+// Locates the true 1-based physical line number of the row that fails to bind into an OrderLine.
+// getCsv into string[][] returns only the data rows (the header row is consumed, not included),
+// so rawRows[0] is physical line 2 (the header itself is physical line 1). Columns are matched
+// by their fixed position, since there is no header row here to look them up by name.
+// Returns 0 if no such row can be identified.
 function findMalformedLine(string[][] rawRows) returns int {
-    if rawRows.length() == 0 {
-        return 0;
-    }
-    string[] headerRow = rawRows[0];
-    int orderIdIndex = headerRow.indexOf("Order ID") ?: -1;
-    int skuIndex = headerRow.indexOf("SKU") ?: -1;
-    int qtyIndex = headerRow.indexOf("Quantity") ?: -1;
-    int unitPriceIndex = headerRow.indexOf("Unit Price") ?: -1;
-
-    foreach int i in 1 ..< rawRows.length() {
-        string[] dataRow = rawRows[i];
-        OrderLine|error orderLine = buildOrderLineFromRawRow(dataRow, orderIdIndex, skuIndex, qtyIndex, unitPriceIndex);
+    foreach int i in 0 ..< rawRows.length() {
+        OrderLine|error orderLine = buildOrderLineFromRawRow(rawRows[i]);
         if orderLine is error {
-            return i + 1;
+            return i + 2;
         }
     }
     return 0;
 }
 
-// Attempts to build an OrderLine from a raw CSV row using the given column indexes.
-// Used only to pinpoint which line failed conversion when a typed getCsv bind fails.
-function buildOrderLineFromRawRow(string[] dataRow, int orderIdIndex, int skuIndex, int qtyIndex, int unitPriceIndex) returns OrderLine|error {
-    if orderIdIndex < 0 || skuIndex < 0 || qtyIndex < 0 || unitPriceIndex < 0 {
-        return error("order file header is missing one or more expected columns");
+// Attempts to build an OrderLine from a raw CSV data row, assuming the fixed column order
+// Order ID, SKU, Quantity, Unit Price. Used only to pinpoint which line failed conversion
+// when a typed getCsv bind fails.
+function buildOrderLineFromRawRow(string[] dataRow) returns OrderLine|error {
+    if dataRow.length() < 4 {
+        return error("order row does not have the expected number of columns");
     }
     return {
-        orderId: dataRow[orderIdIndex],
-        sku: dataRow[skuIndex],
-        qty: check int:fromString(dataRow[qtyIndex]),
-        unitPrice: check decimal:fromString(dataRow[unitPriceIndex])
+        orderId: dataRow[0],
+        sku: dataRow[1],
+        qty: check int:fromString(dataRow[2]),
+        unitPrice: check decimal:fromString(dataRow[3])
     };
 }
 
