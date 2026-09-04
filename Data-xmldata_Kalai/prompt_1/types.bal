@@ -65,3 +65,22 @@ public type ValidationResult record {|
     string[] errorMessages;
     PurchaseOrder? parsedOrder;
 |};
+
+@xmldata:Namespace {
+    uri: "http://procurement.company.com/schema"
+}
+public type PurchaseOrderSummary record {|
+    @xmldata:Name {value: "OrderId"}
+    string orderId;
+    @xmldata:Name {value: "Supplier"}
+    SupplierSummary supplier;
+    @xmldata:Name {value: "Currency"}
+    string currency;
+|};
+
+public type SupplierSummary record {|
+    @xmldata:Name {value: "SupplierId"}
+    string supplierId;
+    @xmldata:Name {value: "Country"}
+    string country;
+|};

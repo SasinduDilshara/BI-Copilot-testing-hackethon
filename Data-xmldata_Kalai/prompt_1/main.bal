@@ -101,4 +101,33 @@ service /orders on new http:Listener(8090) {
         http:Ok ok = {body: validationResult};
         return ok;
     }
+
+    resource function post transform(@http:Payload xml payload) returns http:Ok|http:BadRequest {
+        PurchaseOrderSummary|xmldata:Error summary = xmldata:parseAsType(payload, {allowDataProjection: true});
+        if summary is xmldata:Error {
+            http:BadRequest badRequest = {
+                body: string `Failed to extract purchase order summary: ${summary.message()}`
+            };
+            return badRequest;
+        }
+        http:Ok ok = {body: summary};
+        return ok;
+    }
+
+    resource function post from\-json(@http:Payload json payload) returns http:Ok|http:BadRequest {
+        xmldata:JsonOptions jsonOptions = {
+            attributePrefix: "@",
+            textFieldName: "#text"
+        };
+        xml|xmldata:Error convertedXml = xmldata:fromJson(payload, jsonOptions);
+        if convertedXml is xmldata:Error {
+            http:BadRequest badRequest = {
+                body: string `Failed to convert JSON to XML: ${convertedXml.message()}`
+            };
+            return badRequest;
+        }
+
+        http:Ok ok = {body: convertedXml.toString(), mediaType: "text/plain"};
+        return ok;
+    }
 }
