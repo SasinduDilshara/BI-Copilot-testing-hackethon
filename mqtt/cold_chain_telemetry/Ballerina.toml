@@ -1,0 +1,9 @@
+[package]
+org = "gayaldassanayake"
+name = "cold_chain_telemetry"
+version = "0.1.0"
+distribution = "2201.13.6"
+title = "cold-chain-telemetry"
+
+[build-options]
+sticky = true

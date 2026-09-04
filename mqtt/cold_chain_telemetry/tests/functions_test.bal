@@ -1,0 +1,238 @@
+import ballerina/test;
+
+@test:Config {}
+function testParseValidTemperatureReading() returns error? {
+    byte[] payload = string `{"deviceId":"dev-1","cargoId":"cargo-1","celsius":4.5,"recordedAt":"2026-09-04T03:54:49Z"}`.toBytes();
+    TemperatureReading reading = check parseTemperatureReading(payload);
+
+    test:assertEquals(reading.deviceId, "dev-1", msg = "deviceId should be parsed correctly");
+    test:assertEquals(reading.cargoId, "cargo-1", msg = "cargoId should be parsed correctly");
+    test:assertEquals(reading.celsius, 4.5d, msg = "celsius should be parsed correctly");
+    test:assertEquals(reading.recordedAt, "2026-09-04T03:54:49Z", msg = "recordedAt should be parsed correctly");
+}
+
+@test:Config {}
+function testParseRejectsInvalidJson() {
+    byte[] payload = "not-json".toBytes();
+    TemperatureReading|error reading = parseTemperatureReading(payload);
+    test:assertTrue(reading is error, msg = "Non-JSON payload should be rejected");
+}
+
+@test:Config {}
+function testParseRejectsMissingFields() {
+    byte[] payload = string `{"deviceId":"dev-1","celsius":4.5}`.toBytes();
+    TemperatureReading|error reading = parseTemperatureReading(payload);
+    test:assertTrue(reading is error, msg = "Payload missing required fields should be rejected");
+}
+
+@test:Config {}
+function testParseRejectsEmptyDeviceId() {
+    byte[] payload = string `{"deviceId":"","cargoId":"cargo-1","celsius":4.5,"recordedAt":"2026-09-04T03:54:49Z"}`.toBytes();
+    TemperatureReading|error reading = parseTemperatureReading(payload);
+    test:assertTrue(reading is error, msg = "Payload with empty deviceId should be rejected");
+}
+
+@test:Config {}
+function testParseRejectsInvalidTimestamp() {
+    byte[] payload = string `{"deviceId":"dev-1","cargoId":"cargo-1","celsius":4.5,"recordedAt":"not-a-date"}`.toBytes();
+    TemperatureReading|error reading = parseTemperatureReading(payload);
+    test:assertTrue(reading is error, msg = "Payload with invalid recordedAt should be rejected");
+}
+
+@test:Config {}
+function testParseRejectsWrongFieldType() {
+    byte[] payload = string `{"deviceId":"dev-1","cargoId":"cargo-1","celsius":"cold","recordedAt":"2026-09-04T03:54:49Z"}`.toBytes();
+    TemperatureReading|error reading = parseTemperatureReading(payload);
+    test:assertTrue(reading is error, msg = "Payload with wrong celsius type should be rejected");
+}
+
+@test:Config {}
+function testThresholdBreachDetected() {
+    TemperatureReading reading = {
+        deviceId: "dev-1",
+        cargoId: "cargo-1",
+        celsius: 12.0,
+        recordedAt: "2026-09-04T03:54:49Z"
+    };
+    test:assertTrue(isThresholdBreach(reading, 8.0), msg = "Reading above max threshold should be a breach");
+}
+
+@test:Config {}
+function testThresholdNotBreachedWithinLimit() {
+    TemperatureReading reading = {
+        deviceId: "dev-1",
+        cargoId: "cargo-1",
+        celsius: 4.0,
+        recordedAt: "2026-09-04T03:54:49Z"
+    };
+    test:assertFalse(isThresholdBreach(reading, 8.0), msg = "Reading within max threshold should not be a breach");
+}
+
+@test:Config {}
+function testBuildAlertTopic() {
+    string topic = buildAlertTopic("dev-42");
+    test:assertEquals(topic, "fleet/dev-42/alerts", msg = "Alert topic should be built with the device id");
+}
+
+@test:Config {}
+function testBuildTemperatureAlert() {
+    TemperatureReading reading = {
+        deviceId: "dev-1",
+        cargoId: "cargo-1",
+        celsius: 15.0,
+        recordedAt: "2026-09-04T03:54:49Z"
+    };
+    TemperatureAlert alert = buildTemperatureAlert(reading, 8.0);
+
+    test:assertEquals(alert.deviceId, "dev-1", msg = "Alert should carry the device id");
+    test:assertEquals(alert.cargoId, "cargo-1", msg = "Alert should carry the cargo id");
+    test:assertEquals(alert.celsius, 15.0d, msg = "Alert should carry the recorded celsius value");
+    test:assertEquals(alert.thresholdCelsius, 8.0d, msg = "Alert should carry the configured threshold");
+}
+
+@test:Config {}
+function testHealthCountersInitialSnapshotIsZeroed() {
+    DeviceHealthCounters counters = new;
+    DeviceHealth health = counters.snapshot();
+
+    test:assertEquals(health.status, "online", msg = "Fresh counters should report an online status");
+    test:assertEquals(health.messagesReceived, 0, msg = "Fresh counters should start with zero messages received");
+    test:assertEquals(health.messagesRejected, 0, msg = "Fresh counters should start with zero messages rejected");
+    test:assertEquals(health.breachesDetected, 0, msg = "Fresh counters should start with zero breaches detected");
+    test:assertEquals(health.alertsPublished, 0, msg = "Fresh counters should start with zero alerts published");
+}
+
+@test:Config {}
+function testHealthCountersIncrementMessagesReceived() {
+    DeviceHealthCounters counters = new;
+    counters.incrementMessagesReceived();
+    counters.incrementMessagesReceived();
+    DeviceHealth health = counters.snapshot();
+
+    test:assertEquals(health.messagesReceived, 2, msg = "messagesReceived should reflect the number of increments");
+}
+
+@test:Config {}
+function testHealthCountersIncrementMessagesRejected() {
+    DeviceHealthCounters counters = new;
+    counters.incrementMessagesRejected();
+    DeviceHealth health = counters.snapshot();
+
+    test:assertEquals(health.messagesRejected, 1, msg = "messagesRejected should reflect the number of increments");
+}
+
+@test:Config {}
+function testHealthCountersIncrementBreachesDetected() {
+    DeviceHealthCounters counters = new;
+    counters.incrementBreachesDetected();
+    counters.incrementBreachesDetected();
+    counters.incrementBreachesDetected();
+    DeviceHealth health = counters.snapshot();
+
+    test:assertEquals(health.breachesDetected, 3, msg = "breachesDetected should reflect the number of increments");
+}
+
+@test:Config {}
+function testHealthCountersIncrementAlertsPublished() {
+    DeviceHealthCounters counters = new;
+    counters.incrementAlertsPublished();
+    DeviceHealth health = counters.snapshot();
+
+    test:assertEquals(health.alertsPublished, 1, msg = "alertsPublished should reflect the number of increments");
+}
+
+@test:Config {}
+function testHealthCountersTrackIndependently() {
+    DeviceHealthCounters counters = new;
+    counters.incrementMessagesReceived();
+    counters.incrementMessagesReceived();
+    counters.incrementMessagesRejected();
+    counters.incrementBreachesDetected();
+    counters.incrementAlertsPublished();
+    DeviceHealth health = counters.snapshot();
+
+    test:assertEquals(health.messagesReceived, 2, msg = "messagesReceived should be tracked independently");
+    test:assertEquals(health.messagesRejected, 1, msg = "messagesRejected should be tracked independently");
+    test:assertEquals(health.breachesDetected, 1, msg = "breachesDetected should be tracked independently");
+    test:assertEquals(health.alertsPublished, 1, msg = "alertsPublished should be tracked independently");
+}
+
+@test:Config {}
+function testResolveCargoThresholdReturnsConfiguredValue() returns error? {
+    decimal thresholdCelsius = check resolveCargoThreshold("cargo-1");
+    test:assertEquals(thresholdCelsius, cargoThresholds.get("cargo-1"), msg = "Should resolve the configured threshold for a known cargo");
+}
+
+@test:Config {}
+function testResolveCargoThresholdRejectsUnconfiguredCargo() {
+    decimal|error thresholdCelsius = resolveCargoThreshold("unconfigured-cargo-xyz");
+    test:assertTrue(thresholdCelsius is error, msg = "Unconfigured cargos should be rejected");
+}
+
+@test:Config {}
+function testParseValidPingCommand() returns error? {
+    byte[] payload = string `{"commandType":"PING","deviceId":"dev-1"}`.toBytes();
+    DeviceCommand command = check parseDeviceCommand(payload);
+
+    test:assertEquals(command.commandType, "PING", msg = "commandType should be parsed correctly");
+    test:assertEquals(command.deviceId, "dev-1", msg = "deviceId should be parsed correctly");
+}
+
+@test:Config {}
+function testParseValidReportStatusCommand() returns error? {
+    byte[] payload = string `{"commandType":"REPORT_STATUS","deviceId":"dev-1"}`.toBytes();
+    DeviceCommand command = check parseDeviceCommand(payload);
+
+    test:assertEquals(command.commandType, "REPORT_STATUS", msg = "commandType should be parsed correctly");
+    test:assertEquals(command.deviceId, "dev-1", msg = "deviceId should be parsed correctly");
+}
+
+@test:Config {}
+function testParseCommandRejectsInvalidJson() {
+    byte[] payload = "not-json".toBytes();
+    DeviceCommand|error command = parseDeviceCommand(payload);
+    test:assertTrue(command is error, msg = "Non-JSON payload should be rejected");
+}
+
+@test:Config {}
+function testParseCommandRejectsUnsupportedCommandType() {
+    byte[] payload = string `{"commandType":"REBOOT","deviceId":"dev-1"}`.toBytes();
+    DeviceCommand|error command = parseDeviceCommand(payload);
+    test:assertTrue(command is error, msg = "Unsupported commandType should be rejected");
+}
+
+@test:Config {}
+function testParseCommandRejectsEmptyDeviceId() {
+    byte[] payload = string `{"commandType":"PING","deviceId":""}`.toBytes();
+    DeviceCommand|error command = parseDeviceCommand(payload);
+    test:assertTrue(command is error, msg = "Empty deviceId should be rejected");
+}
+
+@test:Config {}
+function testBuildPingResponse() {
+    DeviceCommand command = {commandType: "PING", deviceId: "dev-1"};
+    DeviceCommandResponse response = buildPingResponse(command);
+
+    test:assertEquals(response.deviceId, "dev-1", msg = "Response should carry the device id");
+    test:assertEquals(response.commandType, "PING", msg = "Response should carry the command type");
+    test:assertEquals(response.status, "OK", msg = "Response should report an OK status");
+    test:assertEquals(response.message, "PONG", msg = "PING response should carry a PONG message");
+}
+
+@test:Config {}
+function testBuildReportStatusResponse() {
+    DeviceCommand command = {commandType: "REPORT_STATUS", deviceId: "dev-1"};
+    DeviceHealth health = {
+        status: "online",
+        messagesReceived: 5,
+        messagesRejected: 1,
+        breachesDetected: 2,
+        alertsPublished: 2
+    };
+    DeviceCommandResponse response = buildReportStatusResponse(command, health);
+
+    test:assertEquals(response.deviceId, "dev-1", msg = "Response should carry the device id");
+    test:assertEquals(response.commandType, "REPORT_STATUS", msg = "Response should carry the command type");
+    test:assertEquals(response.status, "OK", msg = "Response should report an OK status");
+    test:assertEquals(response.health, health, msg = "REPORT_STATUS response should carry the device health snapshot");
+}
