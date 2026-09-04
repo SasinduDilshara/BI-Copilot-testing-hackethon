@@ -33,22 +33,9 @@ service /documents on new http:Listener(8090) {
     # + request - The inbound request carrying the raw PDF bytes
     # + return - The extracted per-page text content, or a typed bad request error if the PDF could not be processed
     resource function post documents/extract(http:Request request) returns ExtractResponse|BadRequestError {
-        byte[]|http:ClientError uploadedBytes = request.getBinaryPayload();
-        if uploadedBytes is http:ClientError {
-            return {
-                body: {
-                    message: string `Failed to read the uploaded document: ${uploadedBytes.message()}`
-                }
-            };
-        }
-
-        string[]|pdf:Error pages = pdf:extractText(uploadedBytes);
-        if pages is pdf:Error {
-            return {
-                body: {
-                    message: string `Failed to extract text from the uploaded document: ${pages.message()}`
-                }
-            };
+        string[]|BadRequestError pages = extractPdfPages(request);
+        if pages is BadRequestError {
+            return pages;
         }
 
         ExtractedPage[] extractedPages = [];
@@ -59,6 +46,39 @@ service /documents on new http:Listener(8090) {
         return {
             pageCount: pages.length(),
             pages: extractedPages
+        };
+    }
+
+    # Searches the text content of an uploaded PDF document for a query string.
+    #
+    # + request - The inbound request carrying the raw PDF bytes
+    # + q - The case-insensitive query string to search for
+    # + return - The matching pages with surrounding snippets, or a typed bad request error
+    resource function post documents/search(http:Request request, string q) returns SearchResponse|BadRequestError {
+        if q.trim().length() == 0 {
+            return {
+                body: {
+                    message: "Query parameter 'q' must not be empty."
+                }
+            };
+        }
+
+        string[]|BadRequestError pages = extractPdfPages(request);
+        if pages is BadRequestError {
+            return pages;
+        }
+
+        SearchMatch[] matches = [];
+        foreach int i in 0 ..< pages.length() {
+            string? snippet = buildSnippet(pages[i], q);
+            if snippet is string {
+                matches.push({page: i + 1, snippet: snippet});
+            }
+        }
+
+        return {
+            query: q,
+            matches: matches
         };
     }
 }

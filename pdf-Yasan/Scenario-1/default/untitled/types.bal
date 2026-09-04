@@ -27,6 +27,18 @@ type ExtractResponse record {|
     ExtractedPage[] pages;
 |};
 
+// Document search response types
+
+type SearchMatch record {|
+    int page;
+    string snippet;
+|};
+
+type SearchResponse record {|
+    string query;
+    SearchMatch[] matches;
+|};
+
 // Error response type
 
 type ErrorDetails record {|

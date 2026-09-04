@@ -1,3 +1,32 @@
+// Builds a short snippet of text surrounding the first case-insensitive match of the query within the page text.
+function buildSnippet(string pageText, string query) returns string? {
+    string lowerPageText = pageText.toLowerAscii();
+    string lowerQuery = query.toLowerAscii();
+    int? matchIndex = lowerPageText.indexOf(lowerQuery);
+    if matchIndex is () {
+        return ();
+    }
+
+    int snippetRadius = 40;
+    int snippetStart = matchIndex - snippetRadius;
+    if snippetStart < 0 {
+        snippetStart = 0;
+    }
+    int snippetEnd = matchIndex + lowerQuery.length() + snippetRadius;
+    if snippetEnd > pageText.length() {
+        snippetEnd = pageText.length();
+    }
+
+    string snippet = pageText.substring(snippetStart, snippetEnd);
+    if snippetStart > 0 {
+        snippet = "..." + snippet;
+    }
+    if snippetEnd < pageText.length() {
+        snippet += "...";
+    }
+    return snippet;
+}
+
 // Builds a clean HTML invoice document from the invoice request.
 function buildInvoiceHtml(InvoiceRequest invoiceRequest) returns string {
     decimal total = 0;
