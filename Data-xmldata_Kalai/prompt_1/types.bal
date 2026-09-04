@@ -58,3 +58,10 @@ public type ProcessedOrder record {|
     @xmldata:Name {value: "TotalOrderValue"}
     decimal totalOrderValue;
 |};
+
+public type ValidationResult record {|
+    boolean valid;
+    string orderId;
+    string[] errorMessages;
+    PurchaseOrder? parsedOrder;
+|};

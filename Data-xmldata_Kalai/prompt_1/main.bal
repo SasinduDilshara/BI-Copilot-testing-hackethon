@@ -37,4 +37,68 @@ service /orders on new http:Listener(8090) {
         response.setXmlPayload(responseXml, contentType = "application/xml");
         return response;
     }
+
+    resource function post validate(@http:Payload xml payload) returns http:Ok|http:BadRequest {
+        string payloadText = payload.toString();
+        string[] errorMessages = [];
+
+        if payloadText.trim().length() == 0 {
+            errorMessages.push("XML string must not be empty");
+            ValidationResult emptyResult = {
+                valid: false,
+                orderId: "",
+                errorMessages: errorMessages,
+                parsedOrder: ()
+            };
+            http:BadRequest badRequest = {body: emptyResult};
+            return badRequest;
+        }
+
+        PurchaseOrder|xmldata:Error purchaseOrder = xmldata:parseString(payloadText);
+        if purchaseOrder is xmldata:Error {
+            errorMessages.push(string `Invalid purchase order XML: ${purchaseOrder.message()}`);
+            ValidationResult parseFailureResult = {
+                valid: false,
+                orderId: "",
+                errorMessages: errorMessages,
+                parsedOrder: ()
+            };
+            http:BadRequest badRequest = {body: parseFailureResult};
+            return badRequest;
+        }
+
+        if !purchaseOrder.orderId.startsWith("PO-") {
+            errorMessages.push("orderId must start with 'PO-'");
+        }
+
+        string[] allowedCurrencies = ["USD", "EUR", "GBP"];
+        if allowedCurrencies.indexOf(purchaseOrder.currency) is () {
+            errorMessages.push("currency must be one of \"USD\", \"EUR\", or \"GBP\"");
+        }
+
+        foreach LineItem lineItem in purchaseOrder.lineItems.item {
+            if lineItem.unitPrice <= 0d {
+                errorMessages.push(string `unitPrice must be greater than 0 for item '${lineItem.itemCode}'`);
+            }
+            int|error quantityAsInt = int:fromString(lineItem.quantity.toString());
+            if lineItem.quantity <= 0d || quantityAsInt is error {
+                errorMessages.push(string `quantity must be a positive integer for item '${lineItem.itemCode}'`);
+            }
+        }
+
+        boolean isValid = errorMessages.length() == 0;
+        ValidationResult validationResult = {
+            valid: isValid,
+            orderId: purchaseOrder.orderId,
+            errorMessages: errorMessages,
+            parsedOrder: isValid ? purchaseOrder : ()
+        };
+
+        if !isValid {
+            http:BadRequest badRequest = {body: validationResult};
+            return badRequest;
+        }
+        http:Ok ok = {body: validationResult};
+        return ok;
+    }
 }
