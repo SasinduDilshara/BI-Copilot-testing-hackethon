@@ -1,0 +1,9 @@
+[package]
+org = "gayaldassanayake"
+name = "factory_predictive_maintenance"
+version = "0.1.0"
+distribution = "2201.13.6"
+title = "factory-predictive-maintenance"
+
+[build-options]
+sticky = true
