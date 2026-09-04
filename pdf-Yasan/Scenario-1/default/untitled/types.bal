@@ -1,0 +1,39 @@
+import ballerina/http;
+
+// Invoice request/response types
+
+type InvoiceLine record {|
+    string description;
+    int qty;
+    decimal unitPrice;
+|};
+
+type InvoiceRequest record {|
+    string invoiceNo;
+    string customer;
+    string issuedOn;
+    InvoiceLine[] lines;
+|};
+
+// Document extraction response types
+
+type ExtractedPage record {|
+    int page;
+    string text;
+|};
+
+type ExtractResponse record {|
+    int pageCount;
+    ExtractedPage[] pages;
+|};
+
+// Error response type
+
+type ErrorDetails record {|
+    string message;
+|};
+
+type BadRequestError record {|
+    *http:BadRequest;
+    ErrorDetails body;
+|};
