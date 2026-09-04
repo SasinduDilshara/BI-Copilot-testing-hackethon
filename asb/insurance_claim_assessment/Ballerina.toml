@@ -1,0 +1,9 @@
+[package]
+org = "gayaldassanayake"
+name = "insurance_claim_assessment"
+version = "0.1.0"
+distribution = "2201.13.6"
+title = "insurance-claim-assessment"
+
+[build-options]
+sticky = true
