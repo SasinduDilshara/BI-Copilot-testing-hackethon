@@ -1,0 +1,9 @@
+[package]
+org = "risinutestq"
+name = "runtime_job_control_api_over_http"
+version = "0.1.0"
+distribution = "2201.13.5"
+title = "Runtime job control API over HTTP"
+
+[build-options]
+sticky = true
