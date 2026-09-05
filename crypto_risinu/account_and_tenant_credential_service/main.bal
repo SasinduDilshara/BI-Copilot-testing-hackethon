@@ -10,9 +10,8 @@ service /auth on new http:Listener(servicePort) {
     resource function post tenants(@http:Payload TenantRegistration tenantRegistration)
             returns TenantRegistrationResult|http:BadRequest|http:InternalServerError {
         string tenantId = tenantRegistration.tenantId;
-        PasswordPolicy passwordPolicy = tenantRegistration.passwordPolicy;
 
-        TenantRegistrationResult|error registrationResult = registerTenant(tenantId, passwordPolicy);
+        TenantRegistrationResult|error registrationResult = registerTenant(tenantId);
 
         if registrationResult is TenantRegistrationResult {
             return registrationResult;

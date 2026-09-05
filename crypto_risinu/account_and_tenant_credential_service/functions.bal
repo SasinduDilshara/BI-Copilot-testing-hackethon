@@ -8,40 +8,52 @@ const string GENERIC_SERVER_ERROR_MESSAGE = "Something went wrong. Please try ag
 const string INVALID_LOGIN_MESSAGE = "Invalid username or password.";
 const string UNAUTHORIZED_TENANT_MESSAGE = "Unauthorized.";
 
-// Low-cost policy parameters: a small PBKDF2 iteration count keeps each login
-// check cheap for high-volume tenants.
-const int LOW_COST_PBKDF2_ITERATIONS = 10000;
+// Standard password hashing parameters: memory-hard Argon2id, tuned so a
+// single verification costs meaningful work on the server. This is the one
+// and only password storage scheme; every account, regardless of tenant, is
+// held to this same standard.
+const int ARGON2_ITERATIONS = 6;
+const int ARGON2_MEMORY_KB = 131072;
+const int ARGON2_PARALLELISM = 4;
 
-// High-cost policy parameters: memory-hard Argon2id with elevated cost
-// parameters makes each login check deliberately expensive for regulated
-// tenants.
-const int HIGH_COST_ARGON2_ITERATIONS = 6;
-const int HIGH_COST_ARGON2_MEMORY_KB = 131072;
-const int HIGH_COST_ARGON2_PARALLELISM = 4;
+// Prefix that identifies a hash produced by the legacy PBKDF2 scheme that
+// used to be offered as a low-cost option. Used only to detect accounts that
+// still need to be transparently upgraded to Argon2id.
+const string LEGACY_PBKDF2_HASH_PREFIX = "$pbkdf2-";
 
 // Builds the composite key used to look up an account, scoping usernames to
 // their owning tenant.
 function accountKey(string tenantId, string username) returns string => tenantId + ":" + username;
 
-// Hashes a password according to the given tenant policy.
-function hashWithPolicy(string password, PasswordPolicy passwordPolicy) returns string|error {
-    if passwordPolicy == LOW_COST {
-        return crypto:hashPbkdf2(password, iterations = LOW_COST_PBKDF2_ITERATIONS);
-    }
-
-    return crypto:hashArgon2(password, iterations = HIGH_COST_ARGON2_ITERATIONS, memory = HIGH_COST_ARGON2_MEMORY_KB,
-            parallelism = HIGH_COST_ARGON2_PARALLELISM);
+// Hashes a password using the single standard scheme.
+function hashPassword(string password) returns string|error {
+    return crypto:hashArgon2(password, iterations = ARGON2_ITERATIONS, memory = ARGON2_MEMORY_KB,
+            parallelism = ARGON2_PARALLELISM);
 }
 
-// Verifies a password against a stored hash according to the given tenant
-// policy. Both hashing schemes self-describe their parameters in the stored
-// hash string, so the verify side only needs to know which algorithm to use.
-function verifyWithPolicy(string password, string passwordHash, PasswordPolicy passwordPolicy) returns boolean|error {
-    if passwordPolicy == LOW_COST {
+// Verifies a password against a stored hash. Stored hashes self-describe
+// their algorithm and parameters, so legacy PBKDF2 hashes left over from
+// before the standardization are still verified correctly; they are then
+// upgraded by the caller on successful login.
+function verifyPassword(string password, string passwordHash) returns boolean|error {
+    if isLegacyHash(passwordHash) {
         return crypto:verifyPbkdf2(password, passwordHash);
     }
 
     return crypto:verifyArgon2(password, passwordHash);
+}
+
+// Reports whether a stored hash was produced by the retired PBKDF2 scheme
+// and therefore still needs to be upgraded to the current standard.
+function isLegacyHash(string passwordHash) returns boolean {
+    return passwordHash.startsWith(LEGACY_PBKDF2_HASH_PREFIX);
+}
+
+// Produces a hash in the retired PBKDF2 format. Not used anywhere in the
+// running service; retained solely so tests can fabricate a pre-existing
+// legacy-hashed account to exercise the silent upgrade path.
+function hashWithLegacyScheme(string password) returns string|error {
+    return crypto:hashPbkdf2(password);
 }
 
 // Derives a tenant's secret from the master secret and the tenant id, as raw
@@ -58,15 +70,25 @@ function deriveTenantSecretHex(string tenantId) returns string|error {
     return secretBytes.toBase16();
 }
 
-// Onboards a new tenant with its declared password policy. Rejects duplicate
-// tenant ids. Returns the tenant's derived secret so it can be handed over;
-// this is the only time the secret is revealed.
-function registerTenant(string tenantId, PasswordPolicy passwordPolicy) returns TenantRegistrationResult|error {
+// Computes the hex-encoded HMAC-SHA256 proof of tenant identity for a given
+// request body, keyed by the tenant's derived secret. This is the same
+// computation a legitimate caller performs to produce the X-Tenant-Proof
+// header value.
+function computeTenantProofHex(string tenantId, string requestBody) returns string|error {
+    byte[] tenantSecretBytes = check deriveTenantSecretBytes(tenantId);
+    byte[] proofBytes = check crypto:hmacSha256(requestBody.toBytes(), tenantSecretBytes);
+    return proofBytes.toBase16();
+}
+
+// Onboards a new tenant. Rejects duplicate tenant ids. Returns the tenant's
+// derived secret so it can be handed over; this is the only time the secret
+// is revealed.
+function registerTenant(string tenantId) returns TenantRegistrationResult|error {
     if tenantStore.hasKey(tenantId) {
         return error("Tenant id is already registered");
     }
 
-    Tenant newTenant = {tenantId, passwordPolicy};
+    Tenant newTenant = {tenantId};
     tenantStore[tenantId] = newTenant;
 
     string tenantSecret = check deriveTenantSecretHex(tenantId);
@@ -92,21 +114,10 @@ function verifyTenantProof(string tenantId, string requestBody, string? provided
     return existingTenant is Tenant && proofMatches;
 }
 
-// Looks up a tenant's declared password policy. Only ever called after the
-// tenant proof has already been verified, so the tenant is known to exist.
-function getTenantPasswordPolicy(string tenantId) returns PasswordPolicy|error {
-    Tenant? existingTenant = tenantStore[tenantId];
-    if existingTenant is Tenant {
-        return existingTenant.passwordPolicy;
-    }
-
-    return error("Unknown tenant id");
-}
-
 // Registers a new account under a tenant. Validates the password length
 // first, before doing anything else (including before checking whether the
 // username exists), then rejects duplicate usernames within the tenant, then
-// hashes and stores the password using the tenant's declared policy.
+// hashes and stores the password using the single standard scheme.
 function registerAccount(string tenantId, string username, string password) returns AuthResult|error {
     if password.length() < MINIMUM_PASSWORD_LENGTH {
         return error("Password does not meet the minimum length requirement");
@@ -117,8 +128,7 @@ function registerAccount(string tenantId, string username, string password) retu
         return error("Username is already taken");
     }
 
-    PasswordPolicy passwordPolicy = check getTenantPasswordPolicy(tenantId);
-    string passwordHash = check hashWithPolicy(password, passwordPolicy);
+    string passwordHash = check hashPassword(password);
     Account newAccount = {tenantId, username, passwordHash};
     accountStore[key] = newAccount;
 
@@ -129,18 +139,25 @@ function registerAccount(string tenantId, string username, string password) retu
 // verification, even when the username is unknown, and always returns the
 // same outcome/message for "unknown username" and "wrong password" so
 // callers cannot distinguish the two cases through the response or through
-// timing.
+// timing. On a successful login against an account still holding a legacy
+// hash, the password is silently rehashed with the current standard scheme
+// and the stored hash is upgraded in place, with no forced reset.
 function authenticateAccount(string tenantId, string username, string password) returns boolean|error {
-    PasswordPolicy passwordPolicy = check getTenantPasswordPolicy(tenantId);
-
     string key = accountKey(tenantId, username);
     Account? existingAccount = accountStore[key];
 
-    string decoyPasswordHash = passwordPolicy == LOW_COST ? decoyPasswordHashLowCost : decoyPasswordHashHighCost;
     string hashToVerify = existingAccount is Account ? existingAccount.passwordHash : decoyPasswordHash;
-    boolean passwordMatches = check verifyWithPolicy(password, hashToVerify, passwordPolicy);
+    boolean passwordMatches = check verifyPassword(password, hashToVerify);
 
-    return existingAccount is Account && passwordMatches;
+    boolean loginSucceeded = existingAccount is Account && passwordMatches;
+
+    if loginSucceeded && existingAccount is Account && isLegacyHash(existingAccount.passwordHash) {
+        string upgradedHash = check hashPassword(password);
+        Account upgradedAccount = {tenantId, username, passwordHash: upgradedHash};
+        accountStore[key] = upgradedAccount;
+    }
+
+    return loginSucceeded;
 }
 
 // Lists the usernames owned by a tenant. Only ever called after the tenant

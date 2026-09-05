@@ -13,13 +13,12 @@ final map<Account> accountStore = {};
 // it is re-derived from the master secret whenever it is needed.
 final map<Tenant> tenantStore = {};
 
-// Pre-computed decoy password hashes, one per policy, with no corresponding
-// real account. When a login is attempted for a username that does not
-// exist, we still run a verify against the matching decoy so the response
-// time and outcome are indistinguishable from a wrong-password case,
-// preventing username enumeration.
-final string decoyPasswordHashLowCost = check hashWithPolicy("decoy-password-value", LOW_COST);
-final string decoyPasswordHashHighCost = check hashWithPolicy("decoy-password-value", HIGH_COST);
+// A pre-computed decoy password hash, using the same standard scheme as real
+// accounts, with no corresponding real account. When a login is attempted
+// for a username that does not exist, we still run a verify against this
+// decoy so the response time and outcome are indistinguishable from a
+// wrong-password case, preventing username enumeration.
+final string decoyPasswordHash = check hashPassword("decoy-password-value");
 
 // A decoy tenant secret used to keep the tenant-proof check's timing and code
 // path identical when the caller's tenant id is not recognized, preventing
