@@ -1,7 +1,6 @@
-// Request payload for scheduling a new background job.
+// Request payload for scheduling a new background job. Jobs run indefinitely until cancelled.
 public type JobRequest record {|
     decimal intervalSeconds;
-    int repeatCount;
     string message;
 |};
 
@@ -19,9 +18,7 @@ public type ErrorResponse record {|
 // Lifecycle status of a managed background job.
 public enum JobStatus {
     RUNNING,
-    PAUSED,
-    CANCELLED,
-    COMPLETED
+    CANCELLED
 }
 
 // Metadata describing a currently tracked job, returned when listing jobs.
@@ -29,12 +26,22 @@ public type JobInfo record {|
     string jobId;
     JobStatus status;
     decimal intervalSeconds;
-    int repeatCount;
     string message;
 |};
 
-// Simple confirmation response for pause/resume/cancel operations.
+// Simple confirmation response for the cancel operation.
 public type JobActionResponse record {|
     string jobId;
     string status;
+|};
+
+// Whether the service is currently accepting job triggers or is suspended for maintenance.
+public enum MaintenanceState {
+    ACTIVE,
+    SUSPENDED
+}
+
+// Response describing the current maintenance state of the service.
+public type MaintenanceStatusResponse record {|
+    MaintenanceState state;
 |};

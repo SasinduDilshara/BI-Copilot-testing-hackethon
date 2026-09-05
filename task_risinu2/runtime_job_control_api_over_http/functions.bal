@@ -13,7 +13,6 @@ type ManagedJob record {|
     task:JobId schedulerJobId;
     JobStatus status;
     decimal intervalSeconds;
-    int repeatCount;
     string message;
     boolean busy;
 |};
@@ -25,6 +24,10 @@ final map<ManagedJob> jobRegistry = {};
 
 // Monotonically increasing counter used to generate unique, readable job identifiers.
 int nextJobSequence = 1;
+
+// Whether the service is currently suspended for maintenance, in which case every tracked job
+// has been paused at the scheduler level.
+MaintenanceState maintenanceState = ACTIVE;
 
 // Ensures the scheduler has enough worker threads for jobs to genuinely run side by side.
 function initializeSchedulerWorkerPool() {
@@ -62,7 +65,7 @@ class MessageLoggerJob {
             log:printError("Job execution failed, will retry on next trigger", 'error = result);
         }
 
-        markCompletedTurn(self.jobId);
+        markFree(self.jobId);
     }
 
     private function logMessage() returns error? {
@@ -88,19 +91,14 @@ function markBusyIfFree(string jobId) returns boolean {
     }
 }
 
-// Marks the job as no longer busy and, once its configured repeat count has been exhausted,
-// flips its status to COMPLETED so future lookups correctly report it as no longer scheduled.
-function markCompletedTurn(string jobId) {
+// Marks the job as no longer busy, allowing its next due trigger to run.
+function markFree(string jobId) {
     lock {
         ManagedJob? managedJob = jobRegistry[jobId];
         if managedJob is () {
             return;
         }
         managedJob.busy = false;
-        managedJob.repeatCount -= 1;
-        if managedJob.repeatCount <= 0 {
-            managedJob.status = COMPLETED;
-        }
     }
 }
 
@@ -108,9 +106,6 @@ function markCompletedTurn(string jobId) {
 function validateJobRequest(JobRequest jobRequest) returns error? {
     if jobRequest.intervalSeconds <= 0d {
         return error("Interval must be a positive number of seconds");
-    }
-    if jobRequest.repeatCount <= 0 {
-        return error("Repeat count must be a positive integer");
     }
 }
 
@@ -123,15 +118,14 @@ function generateJobId() returns string {
     }
 }
 
-// Schedules the recurring background job, registers its metadata, and returns the generated
-// job identifier the caller can use to manage it later.
+// Schedules the recurring background job to run indefinitely, registers its metadata, and
+// returns the generated job identifier the caller can use to manage it later.
 function scheduleBackgroundJob(JobRequest jobRequest) returns string|error {
     string jobId = generateJobId();
     MessageLoggerJob job = new (jobId, jobRequest.message);
     task:JobId schedulerJobId = check task:scheduleJobRecurByFrequency(
         job,
         jobRequest.intervalSeconds,
-        maxCount = jobRequest.repeatCount,
         taskPolicy = {
             errorPolicy: task:LOG_AND_CONTINUE
         }
@@ -142,7 +136,6 @@ function scheduleBackgroundJob(JobRequest jobRequest) returns string|error {
             schedulerJobId,
             status: RUNNING,
             intervalSeconds: jobRequest.intervalSeconds,
-            repeatCount: jobRequest.repeatCount,
             message: jobRequest.message,
             busy: false
         };
@@ -159,7 +152,6 @@ function listJobs() returns JobInfo[] {
                 jobId,
                 status: managedJob.status,
                 intervalSeconds: managedJob.intervalSeconds,
-                repeatCount: managedJob.repeatCount,
                 message: managedJob.message
             });
         }
@@ -178,54 +170,12 @@ function getJobStatus(string jobId) returns JobStatus? {
     }
 }
 
-// Temporarily halts a running job so it stops firing until it is resumed.
-function pauseJob(string jobId) returns error? {
-    task:JobId schedulerJobId;
-    lock {
-        ManagedJob? managedJob = jobRegistry[jobId];
-        if managedJob is () || managedJob.status != RUNNING {
-            return error("Job is not currently running");
-        }
-        schedulerJobId = managedJob.schedulerJobId;
-    }
-
-    check task:pauseJob(schedulerJobId);
-
-    lock {
-        ManagedJob? managedJob = jobRegistry[jobId];
-        if managedJob is ManagedJob {
-            managedJob.status = PAUSED;
-        }
-    }
-}
-
-// Resumes a previously paused job so it continues firing on its original schedule.
-function resumeJob(string jobId) returns error? {
-    task:JobId schedulerJobId;
-    lock {
-        ManagedJob? managedJob = jobRegistry[jobId];
-        if managedJob is () || managedJob.status != PAUSED {
-            return error("Job is not currently paused");
-        }
-        schedulerJobId = managedJob.schedulerJobId;
-    }
-
-    check task:resumeJob(schedulerJobId);
-
-    lock {
-        ManagedJob? managedJob = jobRegistry[jobId];
-        if managedJob is ManagedJob {
-            managedJob.status = RUNNING;
-        }
-    }
-}
-
 // Permanently cancels a job so it will never fire again.
 function cancelJob(string jobId) returns error? {
     task:JobId schedulerJobId;
     lock {
         ManagedJob? managedJob = jobRegistry[jobId];
-        if managedJob is () || (managedJob.status != RUNNING && managedJob.status != PAUSED) {
+        if managedJob is () || managedJob.status != RUNNING {
             return error("Job is not currently active");
         }
         schedulerJobId = managedJob.schedulerJobId;
@@ -238,5 +188,82 @@ function cancelJob(string jobId) returns error? {
         if managedJob is ManagedJob {
             managedJob.status = CANCELLED;
         }
+    }
+}
+
+// Returns the current maintenance state of the service.
+function getMaintenanceState() returns MaintenanceState {
+    lock {
+        return maintenanceState;
+    }
+}
+
+// Suspends the service for maintenance, pausing every currently running job at the scheduler
+// level. Already-cancelled jobs are left untouched. Returns an error if already suspended.
+function enterMaintenance() returns error? {
+    lock {
+        if maintenanceState == SUSPENDED {
+            return error("Service is already in maintenance");
+        }
+    }
+
+    string[] jobIds;
+    lock {
+        jobIds = jobRegistry.keys().clone();
+    }
+
+    foreach string jobId in jobIds {
+        task:JobId? schedulerJobId = ();
+        lock {
+            ManagedJob? managedJob = jobRegistry[jobId];
+            if managedJob is ManagedJob && managedJob.status == RUNNING {
+                schedulerJobId = managedJob.schedulerJobId;
+            }
+        }
+        if schedulerJobId is task:JobId {
+            task:Error? pauseResult = task:pauseJob(schedulerJobId);
+            if pauseResult is task:Error {
+                log:printError(string `Failed to pause job ${jobId} while entering maintenance`, 'error = pauseResult);
+            }
+        }
+    }
+
+    lock {
+        maintenanceState = SUSPENDED;
+    }
+}
+
+// Brings the service back out of maintenance, resuming every currently running job at the
+// scheduler level. Returns an error if not currently suspended.
+function exitMaintenance() returns error? {
+    lock {
+        if maintenanceState == ACTIVE {
+            return error("Service is not currently in maintenance");
+        }
+    }
+
+    string[] jobIds;
+    lock {
+        jobIds = jobRegistry.keys().clone();
+    }
+
+    foreach string jobId in jobIds {
+        task:JobId? schedulerJobId = ();
+        lock {
+            ManagedJob? managedJob = jobRegistry[jobId];
+            if managedJob is ManagedJob && managedJob.status == RUNNING {
+                schedulerJobId = managedJob.schedulerJobId;
+            }
+        }
+        if schedulerJobId is task:JobId {
+            task:Error? resumeResult = task:resumeJob(schedulerJobId);
+            if resumeResult is task:Error {
+                log:printError(string `Failed to resume job ${jobId} while exiting maintenance`, 'error = resumeResult);
+            }
+        }
+    }
+
+    lock {
+        maintenanceState = ACTIVE;
     }
 }
