@@ -22,15 +22,17 @@ service /documents on new http:Listener(servicePort) {
         };
     }
 
-    // Verifies a document against a previously issued proof of origin. The
-    // certificate to check against can be the caller's own PEM text, one
-    // named by alias from the shared trust bundle, or (when neither is
-    // given) our own signing identity. A proof that does not match is
-    // reported calmly as "not authentic" rather than as an error. A proof
-    // or document that is not valid base64 is a client error, as is an
-    // unknown alias. A certificate that is outside its validity window at
-    // the moment of the request is refused, distinctly from both of those
-    // and from a normal "not authentic" outcome.
+    // Verifies a document against a previously issued proof of origin using
+    // the quantum-resistant ML-DSA-65 scheme. The certificate to check
+    // against can be the caller's own PEM text, one named by alias from the
+    // shared trust bundle, or (when neither is given) our own signing
+    // identity — all must carry an ML-DSA-65 identity. A proof that does
+    // not match is reported calmly as "not authentic" rather than as an
+    // error. A proof or document that is not valid base64 is a client
+    // error, as is an unknown alias or a certificate that isn't a usable
+    // ML-DSA-65 identity. A certificate that is outside its validity window
+    // at the moment of the request is refused, distinctly from both of
+    // those and from a normal "not authentic" outcome.
     resource function post verify(@http:Payload DocumentVerificationRequest verificationRequest)
             returns VerifyResult|http:BadRequest|CertificateNotValid|http:InternalServerError {
         string document = verificationRequest.document;
@@ -60,7 +62,7 @@ service /documents on new http:Listener(servicePort) {
         }
         if verificationKey is error {
             return <http:BadRequest>{
-                body: {message: "The supplied certificate is not a valid PEM certificate."}
+                body: {message: "The supplied certificate is not a usable quantum-resistant (ML-DSA-65) certificate."}
             };
         }
 
