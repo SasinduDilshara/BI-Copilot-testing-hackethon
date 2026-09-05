@@ -8,6 +8,13 @@ configurable string keyBundlePassword = ?;
 configurable string keyAlias = ?;
 configurable string keyPassword = ?;
 
+// Location and password for the shared trust bundle (PKCS#12) holding other
+// parties' certificates, so a verification can name one by alias instead of
+// the caller having to supply the certificate inline as PEM text. Nothing
+// here is ever revealed to a caller either.
+configurable string trustBundlePath = ?;
+configurable string trustBundlePassword = ?;
+
 // The private key used to produce detached signatures (proofs of origin).
 // Derived once at module-init time so that a missing bundle, wrong
 // passwords, or a missing alias fail the service at startup rather than on
