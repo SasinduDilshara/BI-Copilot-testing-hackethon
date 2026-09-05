@@ -1,0 +1,3 @@
+[workspace]
+title = "Crypto-Risinu"
+packages = ["account_and_tenant_credential_service"]
