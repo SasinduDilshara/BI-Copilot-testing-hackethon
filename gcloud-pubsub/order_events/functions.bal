@@ -10,6 +10,15 @@ type TransientProcessingError distinct error;
 // idempotent.
 final map<OrderEvent> processedOrderEvents = {};
 
+// In-memory delivery-attempt counters keyed by message ID. The installed
+// ballerinax/gcloud.pubsub connector does not expose a delivery-attempt count
+// on received messages (that field is only populated by Google Cloud when a
+// real dead-letter policy is configured on the subscription), so this counter
+// is a local approximation: it increments each time a message is nacked and
+// redelivered, letting us report how close a message is to the configured
+// maxDeliveryAttempts threshold.
+final map<int> deliveryAttemptsByMessageId = {};
+
 // Order ID reserved for exercising the transient-failure/nack path in tests;
 // processing always fails transiently for events with this order ID.
 const string TRANSIENT_FAILURE_TEST_ORDER_ID = "test-transient-failure-order";
@@ -61,25 +70,76 @@ function getProcessedOrderEvent(string orderId, string eventType) returns OrderE
     }
 }
 
+// Returns a message identity to key the local delivery-attempt counter by.
+// Falls back to a hex encoding of the message content when the broker does
+// not set a messageId, so every message can still be tracked.
+function messageDeliveryKey(pubsub:Message message) returns string {
+    string? messageId = message.messageId;
+    if messageId is string {
+        return messageId;
+    }
+    return message.data.toBase16();
+}
+
+// Increments and returns the local delivery-attempt count for a message.
+// Called once per received message so the very first delivery is reported as
+// attempt 1.
+function recordDeliveryAttempt(pubsub:Message message) returns int {
+    string key = messageDeliveryKey(message);
+    lock {
+        int currentCount = deliveryAttemptsByMessageId[key] ?: 0;
+        int updatedCount = currentCount + 1;
+        deliveryAttemptsByMessageId[key] = updatedCount;
+        return updatedCount;
+    }
+}
+
+// Clears the local delivery-attempt count for a message once it has been
+// acknowledged, since it will not be redelivered.
+function clearDeliveryAttempts(pubsub:Message message) {
+    string key = messageDeliveryKey(message);
+    lock {
+        _ = deliveryAttemptsByMessageId.removeIfHasKey(key);
+    }
+}
+
 // Processes a single incoming Pub/Sub message: reconstructs the order event,
 // processes it, and acks/nacks the caller accordingly. Extracted from the
 // service so the acknowledgement behavior can be exercised directly in tests
 // with a mocked caller.
 function handleIncomingOrderEvent(pubsub:Message message, pubsub:Caller caller) returns error? {
+    int deliveryAttempt = recordDeliveryAttempt(message);
+
     OrderEvent|error orderEvent = toOrderEvent(message);
     if orderEvent is error {
-        log:printError("Discarding malformed order event message", orderEvent);
+        log:printError("Discarding malformed order event message", orderEvent,
+                deliveryAttempt = deliveryAttempt, maxDeliveryAttempts = maxDeliveryAttempts);
+        clearDeliveryAttempts(message);
         check caller->ack();
         return;
     }
 
+    log:printInfo("Received order event", orderId = orderEvent.orderId, eventType = orderEvent.eventType,
+            deliveryAttempt = deliveryAttempt, maxDeliveryAttempts = maxDeliveryAttempts);
+
     TransientProcessingError? processResult = processOrderEvent(orderEvent);
     if processResult is TransientProcessingError {
+        if deliveryAttempt >= maxDeliveryAttempts {
+            log:printError("Exhausted delivery attempts processing order event, discarding message",
+                    processResult, orderId = orderEvent.orderId, eventType = orderEvent.eventType,
+                    deliveryAttempt = deliveryAttempt, maxDeliveryAttempts = maxDeliveryAttempts);
+            clearDeliveryAttempts(message);
+            check caller->ack();
+            return;
+        }
+
         log:printWarn("Transient failure processing order event, requesting redelivery",
-                processResult, orderId = orderEvent.orderId, eventType = orderEvent.eventType);
+                processResult, orderId = orderEvent.orderId, eventType = orderEvent.eventType,
+                deliveryAttempt = deliveryAttempt, maxDeliveryAttempts = maxDeliveryAttempts);
         check caller->nack();
         return;
     }
 
+    clearDeliveryAttempts(message);
     check caller->ack();
 }
