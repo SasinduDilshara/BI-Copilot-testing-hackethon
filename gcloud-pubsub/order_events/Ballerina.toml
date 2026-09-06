@@ -1,0 +1,9 @@
+[package]
+org = "induwarag1"
+name = "order_events"
+version = "0.1.0"
+distribution = "2201.13.3"
+title = "order-events"
+
+[build-options]
+sticky = true
