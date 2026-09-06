@@ -1,0 +1,3 @@
+[workspace]
+title = "gcloud_pubsub"
+packages = ["device_telemetry"]

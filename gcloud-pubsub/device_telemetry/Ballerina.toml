@@ -1,0 +1,9 @@
+[package]
+org = "induwarag1"
+name = "device_telemetry"
+version = "0.1.0"
+distribution = "2201.13.3"
+title = "device-telemetry"
+
+[build-options]
+sticky = true
