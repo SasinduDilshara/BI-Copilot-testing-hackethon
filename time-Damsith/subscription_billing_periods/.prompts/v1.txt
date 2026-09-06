@@ -1,0 +1,3 @@
+Time:prompt-2:v1
+
+We sell monthly subscriptions and every customer is billed on their signup anniversary. Finance has three complaints: customers who signed up on the 31st get skipped in short months, one customer who signed up on a leap day has been billed on the wrong date for three years, and when someone upgrades mid-cycle the credit we give them doesn't match the days they actually had. I need a billing period engine that, given a subscription's start and the current cycle number, works out the period boundaries and the next billing date, prorates a mid-cycle plan change, and produces the cycle's line items in the order finance expects to read them. This has to hold up for at least ten years of cycles without drifting.
