@@ -18,7 +18,7 @@ public type Reading record {|
 
 public type DeviceState record {|
     string deviceId;
-    string lastSeen;
+    time:Utc lastSeen;
     int readingCount;
     boolean stale;
 |};

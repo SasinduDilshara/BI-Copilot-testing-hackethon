@@ -25,12 +25,12 @@ function latestReading(string deviceId) returns Reading? {
 
 function prune(int retentionDays) returns int {
     time:Utc now = time:utcNow();
-    int cutoff = now[0] - (retentionDays * 86400);
+    time:Utc cutoff = time:utcAddSeconds(now, <time:Seconds> - (retentionDays * 86400));
     int removed = 0;
     foreach string deviceId in readings.keys() {
         Reading[] kept = [];
         foreach Reading r in readings.get(deviceId) {
-            if r.observedAt[0] >= cutoff {
+            if time:utcDiffSeconds(r.observedAt, cutoff) >= 0d {
                 kept.push(r);
             } else {
                 removed += 1;

@@ -11,14 +11,15 @@ service /telemetry on new http:Listener(8080) {
         int accepted = 0;
         int rejected = 0;
         foreach GatewayReading gr in batch {
-            if gr.observedAt.length() < 19 {
+            time:Utc|error observedAt = toInstant(gr.observedAt);
+            if observedAt is error {
                 rejected += 1;
                 log:printWarn("unparseable timestamp", deviceId = gr.deviceId, observedAt = gr.observedAt);
                 continue;
             }
             Reading reading = {
                 deviceId: gr.deviceId,
-                observedAt: toInstant(gr.observedAt),
+                observedAt,
                 value: gr.value,
                 unit: gr.unit
             };
@@ -26,14 +27,15 @@ service /telemetry on new http:Listener(8080) {
 
             DeviceState state = devices[gr.deviceId] ?: {
                 deviceId: gr.deviceId,
-                lastSeen: gr.observedAt,
+                lastSeen: observedAt,
                 readingCount: 0,
                 stale: false
             };
-            if gr.observedAt > state.lastSeen {
-                state.lastSeen = gr.observedAt;
+            if time:utcDiffSeconds(observedAt, state.lastSeen) > 0d {
+                state.lastSeen = observedAt;
             }
             state.readingCount += 1;
+            state.stale = false;
             devices[gr.deviceId] = state;
             accepted += 1;
         }
@@ -56,11 +58,12 @@ service /telemetry on new http:Listener(8080) {
 
     resource function get stale() returns DeviceState[] {
         time:Utc now = time:utcNow();
-        int cutoff = now[0] - (stalenessThresholdMinutes * 60);
         DeviceState[] result = [];
-        foreach DeviceState state in devices {
-            time:Utc lastSeen = toInstant(state.lastSeen);
-            state.stale = lastSeen[0] < cutoff;
+        foreach string deviceId in devices.keys() {
+            DeviceState state = devices.get(deviceId);
+            time:Seconds age = time:utcDiffSeconds(now, state.lastSeen);
+            state.stale = age > <decimal>(stalenessThresholdMinutes * 60);
+            devices[deviceId] = state;
             if state.stale {
                 result.push(state);
             }
