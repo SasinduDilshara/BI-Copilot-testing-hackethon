@@ -7,3 +7,9 @@ public type DeviceReading record {|
     string unit;
     string recordedAt;
 |};
+
+// Health snapshot exposing how many readings were dropped per region because
+// the region was not on the configured allow list.
+public type TelemetryHealth record {|
+    map<int> droppedReadingCountsByRegion;
+|};

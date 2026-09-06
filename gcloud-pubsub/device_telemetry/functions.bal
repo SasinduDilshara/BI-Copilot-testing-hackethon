@@ -17,6 +17,10 @@ type TransientStorageError distinct error;
 // deviceId + recordedAt so re-processing the same reading is idempotent.
 final map<DeviceReading> storedReadings = {};
 
+// Number of readings dropped per region because the region was not on the
+// configured allow list.
+final map<int> droppedReadingCountsByRegion = {};
+
 // Builds the message attributes map for a device reading, carrying the
 // device ID, site and metric name out-of-band from the payload.
 function buildReadingAttributes(DeviceReading reading) returns map<string> => {
@@ -42,8 +46,7 @@ function publishDeviceReading(DeviceReading reading) returns error? {
 
     pubsub:Message message = {
         data: data,
-        attributes: attributes,
-        orderingKey: reading.deviceId
+        attributes: attributes
     };
 
     string messageId = check telemetryPublisher->publish(message);
@@ -106,5 +109,23 @@ function getStoredReading(string deviceId, string recordedAt) returns DeviceRead
     string key = string:'join("|", deviceId, recordedAt);
     lock {
         return storedReadings[key];
+    }
+}
+
+// Returns true when the given region is on the configured allow list.
+function isRegionAllowed(string region) returns boolean => allowedRegions.indexOf(region) is int;
+
+// Records a dropped reading for a region that is not on the allow list.
+function recordDroppedReading(string region) {
+    lock {
+        int currentCount = droppedReadingCountsByRegion[region] ?: 0;
+        droppedReadingCountsByRegion[region] = currentCount + 1;
+    }
+}
+
+// Returns a snapshot of the dropped-reading counts, keyed by region.
+function getDroppedReadingCounts() returns map<int> {
+    lock {
+        return droppedReadingCountsByRegion.clone();
     }
 }

@@ -12,6 +12,16 @@ service on telemetryListener {
     }
 }
 
+// Exposes operational visibility into the telemetry ingestion pipeline.
+service /telemetry on telemetryHealthListener {
+
+    resource function get health() returns TelemetryHealth {
+        return {
+            droppedReadingCountsByRegion: getDroppedReadingCounts()
+        };
+    }
+}
+
 // Processes a single incoming Pub/Sub message: reconstructs the reading,
 // stores it, and acks/nacks the caller accordingly. Extracted from the
 // service so the acknowledgement behavior can be exercised directly in tests
@@ -20,6 +30,14 @@ function handleIncomingReading(pubsub:Message message, pubsub:Caller caller) ret
     DeviceReading|error reading = toDeviceReading(message);
     if reading is error {
         log:printError("Discarding malformed device reading message", reading);
+        check caller->ack();
+        return;
+    }
+
+    if !isRegionAllowed(reading.site) {
+        recordDroppedReading(reading.site);
+        log:printWarn("Dropping device reading from a region not on the allow list",
+                deviceId = reading.deviceId, site = reading.site);
         check caller->ack();
         return;
     }

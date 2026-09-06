@@ -59,8 +59,7 @@ function testToDeviceReadingRoundTripsAPublishedMessage() returns error? {
 
     pubsub:Message message = {
         data: payload.toJsonString().toBytes(),
-        attributes: attributes,
-        orderingKey: sampleReading.deviceId
+        attributes: attributes
     };
 
     DeviceReading rebuilt = check toDeviceReading(message);
@@ -130,7 +129,7 @@ function testStoreDeviceReadingIsIdempotentForRedeliveredMessages() returns erro
 }
 
 @test:Config {}
-function testPublishDeviceReadingSendsOrderingKeyAndAttributesToMockPublisher() returns error? {
+function testPublishDeviceReadingSendsAttributesToMockPublisher() returns error? {
     test:prepare(telemetryPublisher).when("publish").thenReturn("mock-message-id-1");
 
     error? result = publishDeviceReading(sampleReading);
@@ -146,8 +145,7 @@ function testHandleIncomingReadingAcksAfterSuccessfulStorage() returns error? {
     DeviceReadingPayload payload = buildReadingPayload(sampleReading);
     pubsub:Message message = {
         data: payload.toJsonString().toBytes(),
-        attributes: attributes,
-        orderingKey: sampleReading.deviceId
+        attributes: attributes
     };
 
     error? result = handleIncomingReading(message, mockCaller);
@@ -187,8 +185,7 @@ function testHandleIncomingReadingNacksOnTransientStorageFailure() returns error
     DeviceReadingPayload payload = buildReadingPayload(failingReading);
     pubsub:Message message = {
         data: payload.toJsonString().toBytes(),
-        attributes: attributes,
-        orderingKey: failingReading.deviceId
+        attributes: attributes
     };
 
     error? result = handleIncomingReading(message, mockCaller);
@@ -196,4 +193,59 @@ function testHandleIncomingReadingNacksOnTransientStorageFailure() returns error
 
     DeviceReading? stored = getStoredReading(failingReading.deviceId, failingReading.recordedAt);
     test:assertTrue(stored is ());
+}
+
+@test:Config {}
+function testIsRegionAllowedForConfiguredRegion() {
+    test:assertTrue(isRegionAllowed("site-central"));
+}
+
+@test:Config {}
+function testIsRegionAllowedForUnconfiguredRegion() {
+    test:assertTrue(!isRegionAllowed("site-unlisted"));
+}
+
+@test:Config {}
+function testHandleIncomingReadingAcksAndDropsReadingFromDisallowedRegion() returns error? {
+    pubsub:Caller mockCaller = test:mock(pubsub:Caller);
+    test:prepare(mockCaller).when("ack").thenReturn(());
+
+    DeviceReading disallowedReading = {
+        deviceId: "device-004",
+        site: "site-unlisted",
+        metricName: "temperature",
+        value: 10.0,
+        unit: "C",
+        recordedAt: "2026-09-05T09:00:00Z"
+    };
+    map<string> attributes = buildReadingAttributes(disallowedReading);
+    DeviceReadingPayload payload = buildReadingPayload(disallowedReading);
+    pubsub:Message message = {
+        data: payload.toJsonString().toBytes(),
+        attributes: attributes
+    };
+
+    map<int> countsBefore = getDroppedReadingCounts();
+    int countBefore = countsBefore["site-unlisted"] ?: 0;
+
+    error? result = handleIncomingReading(message, mockCaller);
+    test:assertTrue(result is ());
+
+    DeviceReading? stored = getStoredReading(disallowedReading.deviceId, disallowedReading.recordedAt);
+    test:assertTrue(stored is ());
+
+    map<int> countsAfter = getDroppedReadingCounts();
+    test:assertEquals(countsAfter["site-unlisted"], countBefore + 1);
+}
+
+@test:Config {}
+function testGetDroppedReadingCountsReflectsRecordedDrops() {
+    recordDroppedReading("site-remote");
+    map<int> countsBefore = getDroppedReadingCounts();
+    int countBefore = countsBefore["site-remote"] ?: 0;
+
+    recordDroppedReading("site-remote");
+    map<int> countsAfter = getDroppedReadingCounts();
+
+    test:assertEquals(countsAfter["site-remote"], countBefore + 1);
 }
