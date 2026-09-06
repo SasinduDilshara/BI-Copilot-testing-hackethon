@@ -12,6 +12,13 @@ function mockInitOrderEventPublisher() returns pubsub:Publisher|error {
 }
 
 @test:Mock {
+    functionName: "initPoisonEventPublisher"
+}
+function mockInitPoisonEventPublisher() returns pubsub:Publisher|error {
+    return test:mock(pubsub:Publisher);
+}
+
+@test:Mock {
     functionName: "initOrderEventListener"
 }
 function mockInitOrderEventListener() returns pubsub:Listener|error {
@@ -186,10 +193,11 @@ function testHandleIncomingOrderEventReportsIncrementingDeliveryAttempts() retur
 }
 
 @test:Config {}
-function testHandleIncomingOrderEventAcksAndClearsCounterOnceMaxDeliveryAttemptsReached() returns error? {
+function testHandleIncomingOrderEventPublishesToPoisonTopicOnceMaxDeliveryAttemptsReached() returns error? {
     pubsub:Caller mockCaller = test:mock(pubsub:Caller);
     test:prepare(mockCaller).when("ack").thenReturn(());
     test:prepare(mockCaller).when("nack").thenReturn(());
+    test:prepare(poisonEventPublisher).when("publish").thenReturn("mock-poison-message-id-1");
 
     OrderEvent failingOrderEvent = {
         orderId: TRANSIENT_FAILURE_TEST_ORDER_ID,
@@ -208,10 +216,21 @@ function testHandleIncomingOrderEventAcksAndClearsCounterOnceMaxDeliveryAttempts
         test:assertTrue(lastResult is ());
     }
 
-    // After maxDeliveryAttempts nacks the message is acked and the local
-    // counter is cleared, so a fresh delivery starts back at attempt 1.
+    // After maxDeliveryAttempts failures the message has been published to
+    // the poison topic and acked, and the local counter is cleared, so a
+    // fresh delivery starts back at attempt 1.
     int attemptAfterExhaustion = recordDeliveryAttempt(message);
     test:assertEquals(attemptAfterExhaustion, 1);
+}
+
+@test:Config {}
+function testPublishToPoisonTopicCarriesFailureReasonAndAttemptCount() returns error? {
+    test:prepare(poisonEventPublisher).when("publish").thenReturn("mock-poison-message-id-2");
+
+    pubsub:Message message = toMessage(sampleOrderEvent, messageId = "msg-poison-1");
+
+    error? result = publishToPoisonTopic(message, maxDeliveryAttempts, "simulated transient processing failure");
+    test:assertTrue(result is ());
 }
 
 @test:Config {}

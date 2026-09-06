@@ -12,11 +12,11 @@ final map<OrderEvent> processedOrderEvents = {};
 
 // In-memory delivery-attempt counters keyed by message ID. The installed
 // ballerinax/gcloud.pubsub connector does not expose a delivery-attempt count
-// on received messages (that field is only populated by Google Cloud when a
-// real dead-letter policy is configured on the subscription), so this counter
-// is a local approximation: it increments each time a message is nacked and
-// redelivered, letting us report how close a message is to the configured
-// maxDeliveryAttempts threshold.
+// on received messages and has no admin API to configure a dead-letter policy
+// on the subscription, so this counter is tracked entirely in application
+// code: it increments each time a message is redelivered, is reported on
+// every receive, and drives when a message is routed to the poison topic
+// instead of being nacked again.
 final map<int> deliveryAttemptsByMessageId = {};
 
 // Order ID reserved for exercising the transient-failure/nack path in tests;
@@ -103,6 +103,25 @@ function clearDeliveryAttempts(pubsub:Message message) {
     }
 }
 
+// Republishes a message to the poison topic, carrying the original message
+// attributes plus the failure reason and the number of delivery attempts
+// made, then logs the message ID returned by the broker.
+function publishToPoisonTopic(pubsub:Message message, int deliveryAttempt, string failureReason) returns error? {
+    map<string> attributes = message.attributes is map<string> ? (<map<string>>message.attributes).clone() : {};
+    attributes["failureReason"] = failureReason;
+    attributes["deliveryAttempts"] = deliveryAttempt.toString();
+
+    pubsub:Message poisonMessage = {
+        data: message.data,
+        attributes: attributes
+    };
+
+    string messageId = check poisonEventPublisher->publish(poisonMessage);
+    log:printWarn("Published exhausted order event message to poison topic", messageId = messageId,
+            deliveryAttempt = deliveryAttempt, maxDeliveryAttempts = maxDeliveryAttempts,
+            failureReason = failureReason);
+}
+
 // Processes a single incoming Pub/Sub message: reconstructs the order event,
 // processes it, and acks/nacks the caller accordingly. Extracted from the
 // service so the acknowledgement behavior can be exercised directly in tests
@@ -125,9 +144,7 @@ function handleIncomingOrderEvent(pubsub:Message message, pubsub:Caller caller) 
     TransientProcessingError? processResult = processOrderEvent(orderEvent);
     if processResult is TransientProcessingError {
         if deliveryAttempt >= maxDeliveryAttempts {
-            log:printError("Exhausted delivery attempts processing order event, discarding message",
-                    processResult, orderId = orderEvent.orderId, eventType = orderEvent.eventType,
-                    deliveryAttempt = deliveryAttempt, maxDeliveryAttempts = maxDeliveryAttempts);
+            check publishToPoisonTopic(message, deliveryAttempt, processResult.message());
             clearDeliveryAttempts(message);
             check caller->ack();
             return;
