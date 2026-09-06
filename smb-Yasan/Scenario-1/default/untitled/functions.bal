@@ -5,10 +5,14 @@ import ballerina/smb;
 const string OUTGOING_DIR = "/outgoing";
 const string PROCESSED_DIR = "/processed";
 const string ARCHIVE_DIR = "/archive";
+const string ERROR_DIR = "/error";
 
-final regexp:RegExp orderFileNamePattern = re `^orders-\d{8}\.csv$`;
+final string orderFileNameRegexPattern = "^orders-\\d{8}\\.csv$";
+final regexp:RegExp orderFileNamePattern = check regexp:fromString(orderFileNameRegexPattern);
 
 // Lists the outgoing directory and processes every file that matches the order file naming convention.
+// Each file is isolated: a file that fails to read/bind or validate is moved to /error and logged,
+// while every other file continues to be processed normally.
 function processOutgoingOrderFiles() returns error? {
     smb:FileInfo[] files = check partnerShareClient->list(OUTGOING_DIR);
     foreach smb:FileInfo file in files {
@@ -19,27 +23,29 @@ function processOutgoingOrderFiles() returns error? {
         if !orderFileNamePattern.isFullMatch(fileName) {
             continue;
         }
-        check processOrderFile(fileName);
+
+        error? result = processOrderFile(fileName);
+        if result is error {
+            handleFileFailure(fileName, result);
+        }
     }
 }
 
-// Reads, validates, summarizes, and archives a single order file. Invalid files are skipped and logged.
+// Reads, validates, summarizes, and archives a single order file.
+// Returns an error (without having moved the file) when the file cannot be read/bound or contains an invalid line.
 function processOrderFile(string fileName) returns error? {
     string sourcePath = string `${OUTGOING_DIR}/${fileName}`;
-    OrderLine[] orderLines = check partnerShareClient->getCsv(sourcePath);
+    OrderLine[]|error orderLines = partnerShareClient->getCsv(sourcePath);
+    if orderLines is error {
+        return error(string `Failed to read/bind CSV content: ${orderLines.message()}`, orderLines);
+    }
 
-    boolean allValid = true;
     foreach int lineIndex in 0 ..< orderLines.length() {
         OrderLine orderLine = orderLines[lineIndex];
         if !isValidOrderLine(orderLine) {
-            allValid = false;
-            log:printError(string `Invalid order line in file ${fileName} at line ${lineIndex + 2}: qty=${orderLine.qty}, unitPrice=${orderLine.unitPrice}`);
+            int physicalLine = lineIndex + 2;
+            return error(string `Invalid order line at line ${physicalLine}: qty=${orderLine.qty}, unitPrice=${orderLine.unitPrice}`);
         }
-    }
-
-    if !allValid {
-        log:printWarn(string `Skipping file ${fileName} due to validation failures`);
-        return;
     }
 
     OrderFileSummary summary = buildOrderFileSummary(orderLines);
@@ -50,6 +56,19 @@ function processOrderFile(string fileName) returns error? {
     check partnerShareClient->move(sourcePath, archivePath);
 
     log:printInfo(string `Processed file ${fileName}: ${summary.orderCount} orders, grand total ${summary.grandTotal}`);
+}
+
+// Logs the failure with the file name and moves the offending file from /outgoing to /error.
+// A failure to move the file itself is logged but does not propagate, so the run continues.
+function handleFileFailure(string fileName, error cause) {
+    log:printError(string `Skipping file ${fileName}: ${cause.message()}`, cause);
+
+    string sourcePath = string `${OUTGOING_DIR}/${fileName}`;
+    string errorPath = string `${ERROR_DIR}/${fileName}`;
+    error? moveResult = partnerShareClient->move(sourcePath, errorPath);
+    if moveResult is error {
+        log:printError(string `Failed to move ${fileName} to ${ERROR_DIR}`, moveResult);
+    }
 }
 
 // Validates a single order line: qty must be greater than 0 and unitPrice must be at least 0.
