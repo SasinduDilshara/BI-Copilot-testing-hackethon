@@ -5,12 +5,15 @@ string incomingDirectory = check file:joinPath(baseDirectory, "incoming");
 string organizedDirectory = check file:joinPath(baseDirectory, "organized");
 string quarantineDirectory = check file:joinPath(baseDirectory, "quarantine");
 
-function init() returns error? {
+boolean directoryTreeReady = check initializeDirectoryTree();
+
+function initializeDirectoryTree() returns boolean|error {
     check ensureDirectoryExists(baseDirectory);
     check ensureDirectoryExists(incomingDirectory);
     check ensureDirectoryExists(organizedDirectory);
     check ensureDirectoryExists(quarantineDirectory);
     log:printInfo("Directory tree ready", baseDirectory = baseDirectory);
+    return true;
 }
 
 listener file:Listener incomingListener = new ({
