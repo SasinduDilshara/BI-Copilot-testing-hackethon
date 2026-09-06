@@ -16,4 +16,18 @@ service /aggregates on aggregateServiceListener {
         }
         return {messageIds: messageIds};
     }
+
+    // Pulls a configurable number of messages synchronously from the
+    // configured subscription, for operational spot checks.
+    resource function get pull() returns AggregatePullResponse|http:InternalServerError {
+        PulledMessage[]|error pulledMessages = pullAggregateMessages();
+        if pulledMessages is error {
+            return {
+                body: {
+                    message: string `Failed to pull messages from subscription: ${pulledMessages.message()}`
+                }
+            };
+        }
+        return {messages: pulledMessages};
+    }
 }
