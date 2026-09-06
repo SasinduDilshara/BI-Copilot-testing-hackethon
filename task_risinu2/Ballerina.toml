@@ -1,3 +1,3 @@
 [workspace]
 title = "Task-Risinu2"
-packages = ["runtime_job_control_api_over_http"]
+packages = ["runtime_job_control_api_over_http", "self_running_file_sweeper"]

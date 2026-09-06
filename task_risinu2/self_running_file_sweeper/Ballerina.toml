@@ -1,0 +1,9 @@
+[package]
+org = "risinutestq"
+name = "self_running_file_sweeper"
+version = "0.1.0"
+distribution = "2201.13.0"
+title = "Self-running file sweeper"
+
+[build-options]
+sticky = true
