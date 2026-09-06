@@ -1,3 +1,3 @@
 [workspace]
 title = "gcloud_pubsub"
-packages = ["device_telemetry", "order_events"]
+packages = ["device_telemetry", "order_events", "batch_publisher"]

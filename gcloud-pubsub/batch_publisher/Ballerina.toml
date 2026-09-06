@@ -1,0 +1,9 @@
+[package]
+org = "induwarag1"
+name = "batch_publisher"
+version = "0.1.0"
+distribution = "2201.13.3"
+title = "batch-publisher"
+
+[build-options]
+sticky = true
