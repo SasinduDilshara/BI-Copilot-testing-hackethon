@@ -1,0 +1,3 @@
+Time:prompt-3:v4
+
+One thing I want nailed down before this merges. What exactly is the internal type we're storing an instant in — a record with named fields, or something else? What does each part of it hold, and what are the actual types? If I compare two of these with the ordinary comparison or equality operators, does the compiler let me, and does it do what I'd want? And when we turn one back into a string for the dashboard, what precision comes out, and where does that precision come from — the value or the function? Explain in prose with the concrete types; no code.
