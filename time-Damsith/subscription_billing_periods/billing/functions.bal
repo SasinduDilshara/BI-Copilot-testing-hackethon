@@ -1,3 +1,5 @@
+import ballerina/time;
+
 // Returns true if the given year is a Gregorian leap year.
 function isLeapYear(int year) returns boolean {
     boolean divisibleBy4 = year % 4 == 0;
@@ -55,10 +57,36 @@ function addMonthsClamped(CalendarDate signupDate, int monthsToAdd) returns Cale
     return {year: targetYear, month: targetMonth, day: targetDay};
 }
 
+// Resolves a calendar date to the exact UTC instant of local midnight (00:00:00) on that date in the
+// given IANA time zone. Delegating the offset lookup to time:Zone (rather than a fixed UTC offset) is
+// what makes this correct for every zone, including ones with a non-integer or seasonally varying offset.
+function toLocalMidnightInstant(CalendarDate calendarDate, string timeZoneId) returns time:Utc|error {
+    time:Zone? zone = time:getZone(timeZoneId);
+    if zone is () {
+        return error(string `Unknown time zone ID: ${timeZoneId}`);
+    }
+
+    time:Civil localMidnight = {
+        year: calendarDate.year,
+        month: calendarDate.month,
+        day: calendarDate.day,
+        hour: 0,
+        minute: 0,
+        second: 0
+    };
+
+    return zone.utcFromCivil(localMidnight);
+}
+
 // Computes the [periodStart, periodEnd) boundaries and the next billing date for the given cycle number
 // of a subscription, anchored on the original signup date so short months and leap-day anniversaries
-// never drift, however many cycles have elapsed.
-public function getBillingPeriod(CalendarDate subscriptionStart, int cycleNumber) returns BillingPeriod|error {
+// never drift, however many cycles have elapsed. Boundaries are resolved to the exact UTC instant of
+// local midnight in the subscription's own time zone, so a cycle genuinely starts and ends at midnight
+// for that customer - not at midnight UTC. A cycle that contains a daylight-saving clock change still
+// spans exactly one calendar-day count (cycleLengthDays) and is still exactly one billing cycle; only
+// its actual elapsed duration in seconds (cycleLengthSeconds) reflects the 23h/25h DST day.
+public function getBillingPeriod(CalendarDate subscriptionStart, string timeZoneId, int cycleNumber)
+        returns BillingPeriod|error {
     if cycleNumber < 1 {
         return error("cycleNumber must be 1 or greater");
     }
@@ -67,12 +95,20 @@ public function getBillingPeriod(CalendarDate subscriptionStart, int cycleNumber
     CalendarDate periodEnd = addMonthsClamped(subscriptionStart, cycleNumber);
     int cycleLengthDays = daysBetween(periodStart, periodEnd);
 
+    time:Utc periodStartInstant = check toLocalMidnightInstant(periodStart, timeZoneId);
+    time:Utc periodEndInstant = check toLocalMidnightInstant(periodEnd, timeZoneId);
+    decimal cycleLengthSeconds = time:utcDiffSeconds(periodEndInstant, periodStartInstant);
+
     return {
         cycleNumber: cycleNumber,
         periodStart: periodStart,
         periodEnd: periodEnd,
         nextBillingDate: periodEnd,
-        cycleLengthDays: cycleLengthDays
+        periodStartInstant: periodStartInstant,
+        periodEndInstant: periodEndInstant,
+        nextBillingInstant: periodEndInstant,
+        cycleLengthDays: cycleLengthDays,
+        cycleLengthSeconds: cycleLengthSeconds
     };
 }
 

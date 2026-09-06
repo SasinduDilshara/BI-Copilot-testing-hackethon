@@ -1,3 +1,5 @@
+import ballerina/time;
+
 // Calendar date (year/month/day) without time-of-day. All billing computations are done at day granularity
 // in the subscription's billing calendar, avoiding any time-zone/duration drift over long spans.
 public type CalendarDate record {|
@@ -11,17 +13,34 @@ public type Subscription record {|
     string subscriptionId;
     CalendarDate startDate;
     decimal monthlyAmount;
+    // IANA time zone ID (e.g. "America/Sao_Paulo", "Europe/Berlin") for the customer's own country.
+    // Cycle boundaries are local midnight in this zone, not UTC midnight.
+    string timeZoneId;
 |};
 
 // The inclusive start and exclusive end of a single billing cycle, plus the date the next cycle is billed on.
+// periodStart/periodEnd are the calendar-day boundaries (used for calendar-day proration), while
+// periodStartInstant/periodEndInstant are the exact UTC instants of local midnight for those boundaries
+// in the subscription's own time zone - this is what genuinely marks the start/end of the cycle.
 public type BillingPeriod record {|
     int cycleNumber;
     CalendarDate periodStart;
     // Exclusive end - the period covers [periodStart, periodEnd).
     CalendarDate periodEnd;
     CalendarDate nextBillingDate;
-    // Total number of days in this cycle (periodEnd - periodStart), used as the denominator for proration.
+    // The exact UTC instant of local midnight at the start of the cycle.
+    time:Utc periodStartInstant;
+    // The exact UTC instant of local midnight at the end of the cycle (exclusive).
+    time:Utc periodEndInstant;
+    time:Utc nextBillingInstant;
+    // Total number of calendar days in this cycle (periodEnd - periodStart), used as the denominator
+    // for calendar-day proration. This stays a whole number of days even when the cycle contains a
+    // daylight-saving clock change.
     int cycleLengthDays;
+    // Actual elapsed duration of the cycle in seconds (periodEndInstant - periodStartInstant). This will
+    // differ from cycleLengthDays * 86400 exactly when the cycle contains a DST transition, e.g. a
+    // 25-hour "fall back" day - the cycle is still exactly one calendar cycle, just not exactly 24h/day.
+    decimal cycleLengthSeconds;
 |};
 
 // Represents a plan a customer can be subscribed to.
