@@ -1,0 +1,3 @@
+JWT:prompt-2:v1
+
+We're exposing a claims-processing API to three broker partners who authenticate against our corporate identity provider, not against us. They'll call our endpoints carrying tokens that the IdP issued, and we need to reject anything that isn't a genuine, current token from that provider and actually meant for our API. The endpoints aren't equally sensitive — reading the status of a claim is not the same as approving a payout — so not every valid caller should reach every endpoint. Our security team have also ruled out shipping the IdP's public keys inside our build artifacts. Build the service.

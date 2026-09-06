@@ -1,0 +1,3 @@
+JWT:prompt-1:v3
+
+Depot managers now need to act on behalf of drivers in their own depot for dispute handling, and downstream services have to be able to tell a genuine driver session apart from a manager standing in for one — right now every token we issue looks identical once it leaves us. Separately, a token we issued for the Colombo region was accepted by a service running in the Jakarta region, which compliance are unhappy about. Handle both in the token itself, without adding another lookup for the downstream services.

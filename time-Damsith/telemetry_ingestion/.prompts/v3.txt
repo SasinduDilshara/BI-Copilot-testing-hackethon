@@ -1,0 +1,3 @@
+Time:prompt-3:v3
+
+Heads up — the new Kuala Lumpur gateway went live this morning and it doesn't send timestamps the way the others do; it sends local time with the region's offset attached rather than everything already in UTC. Our stale-device alerts for those units are now firing hours out. Make sure timestamps from any gateway are interpreted correctly regardless of how the offset is expressed, and add a test that would have caught this.

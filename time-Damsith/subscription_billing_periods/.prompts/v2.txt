@@ -1,0 +1,5 @@
+Time:prompt-2:v2
+
+Two support tickets from Brazil and one from Berlin: customers say their invoice period started hours into the previous day, and one October cycle came out an hour longer than every other one. Our cycle boundaries are supposed to be midnight in the customer's own country, not midnight UTC and not a fixed number of hours after the last boundary. Fix the boundary calculation so a boundary is genuinely local midnight for that customer wherever they are, and make sure a cycle containing a clock change still counts as one whole cycle for billing purposes.
+
+Edited. Was "an hour into the previous day", which is wrong for Brazil — at −03:00 midnight UTC is 21:00 the previous day, three hours in, not one. Don't hand Copilot a symptom that doesn't match the zone; it invites it to chase the wrong offset. The Berlin "October cycle an hour longer" is correct as written — that cycle contains a 25-hour day.

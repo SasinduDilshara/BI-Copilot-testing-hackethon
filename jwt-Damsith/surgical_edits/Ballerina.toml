@@ -1,0 +1,3 @@
+[workspace]
+title = "surgical edits"
+packages = ["service"]

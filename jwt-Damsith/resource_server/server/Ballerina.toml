@@ -1,0 +1,9 @@
+[package]
+org = "damsith"
+name = "server"
+version = "0.1.0"
+distribution = "2201.13.4"
+title = "server"
+
+[build-options]
+sticky = true

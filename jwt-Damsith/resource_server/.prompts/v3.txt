@@ -1,0 +1,3 @@
+JWT:prompt-2:v3
+
+Load testing has just shown that we're hammering the IdP — every single inbound request produces an outbound call to fetch keys, and their team has already rate-limited us once this week. Fix that so keys are held for a sensible period, but not so long that a rotation goes unnoticed until someone restarts the pod. While you're in there, the tolerance we allow for clock drift between our pods and the IdP needs to be explicit and configurable rather than whatever the default happens to be — ops want to see it in the config file.

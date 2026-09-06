@@ -1,0 +1,3 @@
+JWT:prompt-3:v2
+
+The platform team are standardising us: every service on the mesh has to declare its authentication in the service configuration so their static scanner can read it without executing anything, rather than each team hand-rolling it inside the resource body. Move ours across. What callers see must not change — same rejections, same status codes, same body — and take out the hand-written code that becomes redundant rather than leaving it sitting there unused.

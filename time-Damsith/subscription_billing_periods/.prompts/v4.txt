@@ -1,0 +1,3 @@
+Time:prompt-2:v4
+
+Straight answers before I trust this in production. If I take an instant and add exactly one day's worth of seconds to it, does the library account for leap seconds, and what does it do if it's handed a timestamp string whose seconds field is sixty? Second: if I ask it to validate the twenty-ninth of February in a non-leap year, does it reject it, and does it reject the thirtieth of February the same way? Third: what precision do I actually get back when I ask for the current instant, and does that change if I don't say what precision I want? Prose only, with the exact types and error behaviour — no code.

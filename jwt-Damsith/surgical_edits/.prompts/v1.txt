@@ -1,0 +1,3 @@
+JWT:prompt-3:v1
+
+Take a look at service.bal — this has been in production for about a year and our new security lead has just worked out that we pull the caller's identity straight out of the token and trust it, without ever checking that the token is real. Anyone who can craft something that looks plausible gets straight through. Fix it so we're genuinely verifying tokens before we believe anything inside them, keeping the existing handler structure and the behaviour legitimate callers see today. Our identity provider signs with a key we already hold the certificate for.

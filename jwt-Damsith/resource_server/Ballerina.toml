@@ -1,0 +1,3 @@
+[workspace]
+title = "resource server"
+packages = ["server"]

@@ -1,0 +1,3 @@
+JWT:prompt-2:v2
+
+Our IdP is Keycloak and the platform team are moving us onto a recent major version this quarter. Before we lock down the validator config, go and check what the current Keycloak release actually exposes for its key endpoint and how it behaves during a signing-key rotation — the path and the realm layout have changed at least once and I don't want us copying something out of an old blog post. Then adjust our config to match what's genuinely current, and tell me where you got it from.

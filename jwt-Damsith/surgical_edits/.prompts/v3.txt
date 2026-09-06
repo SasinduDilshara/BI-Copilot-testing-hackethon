@@ -1,0 +1,3 @@
+JWT:prompt-3:v3
+
+client.bal still authenticates to the partner API with a token someone pasted in as a constant eighteen months ago; it expires next month and nobody can rotate it without a redeploy. The partner has since moved to accepting assertions we sign ourselves with the key pair we registered with them, so we should be minting our own short-lived token rather than carrying a long-lived one around. Hold onto it across calls instead of signing a fresh one per request, and replace it before it dies rather than after we start collecting 401s. Delete the constant — it's dangerous and it's already in git history.

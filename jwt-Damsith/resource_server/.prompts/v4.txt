@@ -1,0 +1,3 @@
+JWT:prompt-2:v4
+
+Compliance found that one partner's read-only integration account was able to call the payout-approval endpoint successfully and got a 200 back. Two separate problems there: the endpoint plainly isn't checking what the caller is entitled to, and our IdP publishes entitlements under a non-standard claim name that I don't believe we ever told the validator about. Fix the authorization properly, and make a rejection come back as a clean 403 in our standard error body rather than whatever the framework emits by default.

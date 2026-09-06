@@ -1,0 +1,3 @@
+Time:prompt-3:v1
+
+The telemetry service has been in production for a month and the dashboards are wrong in ways we can't explain. Devices show up as stale when they reported minutes ago, the latest reading for a device is sometimes an older one, and the retention job deleted a week of data it shouldn't have touched. The gateway team swears their payloads are fine and I'm inclined to believe them — nothing has changed on their side. Go through what's there, work out where our handling of the incoming timestamps is actually going wrong, and fix it properly rather than patching the symptoms. Don't change the payload shape the gateway sends us.

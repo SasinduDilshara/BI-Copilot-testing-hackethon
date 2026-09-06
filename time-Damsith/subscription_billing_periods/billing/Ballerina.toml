@@ -1,0 +1,9 @@
+[package]
+org = "damsith"
+name = "billing"
+version = "0.1.0"
+distribution = "2201.13.4"
+title = "billing"
+
+[build-options]
+sticky = true
