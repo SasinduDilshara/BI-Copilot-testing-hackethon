@@ -16,7 +16,7 @@ function latestReading(string deviceId) returns Reading? {
     }
     Reading latest = all[0];
     foreach Reading r in all {
-        if r.observedAt[0] > latest.observedAt[0] {
+        if time:utcDiffSeconds(r.observedAt, latest.observedAt) > 0d {
             latest = r;
         }
     }

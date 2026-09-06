@@ -1,0 +1,3 @@
+Time:prompt-3:v2
+
+Good progress, but analytics are still seeing ties. Some of our devices report fifty times a second and the gateway sends sub-second precision, and once the data lands in our store, readings taken within the same second come back in whatever order they arrived rather than the order they were taken. They need the exact instant preserved end to end, including whatever precision the gateway sent, and the ordering to reflect it.
