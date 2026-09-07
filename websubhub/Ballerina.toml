@@ -1,0 +1,3 @@
+[workspace]
+title = "websubhub"
+packages = ["supplier_intentory_distribution"]
