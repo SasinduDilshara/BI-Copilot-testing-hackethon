@@ -38,6 +38,19 @@ service /websubhub on new websubhub:Listener(hubPort) {
         if !isTopicRegistered(topic) {
             return error websubhub:UpdateMessageError("topic not registered", statusCode = http:STATUS_NOT_FOUND);
         }
+        // Serialize the content to a fixed string representation once, so the signature is computed
+        // over the exact same bytes that will be sent over the wire to each subscriber.
+        string|error serializedContentResult = msg.content is byte[] ? string:fromBytes(<byte[]>msg.content) : msg.content.toString();
+        if serializedContentResult is error {
+            log:printError("error serializing content", serializedContentResult);
+            return error websubhub:UpdateMessageError("error serializing content", statusCode = http:STATUS_INTERNAL_SERVER_ERROR);
+        }
+        string serializedContent = serializedContentResult;
+        string|error signature = computeContentSignature(serializedContent.toBytes(), subscriptionSecret);
+        if signature is error {
+            log:printError("error computing content signature", signature);
+            return error websubhub:UpdateMessageError("error signing content", statusCode = http:STATUS_INTERNAL_SERVER_ERROR);
+        }
         VerifiedSubscriber[] subscribers = getVerifiedSubscriptionsForTopic(topic);
         foreach VerifiedSubscriber subscriber in subscribers {
             websubhub:HubClient|error hubClientResult = new (subscriberToSubscription(subscriber));
@@ -46,7 +59,11 @@ service /websubhub on new websubhub:Listener(hubPort) {
                 continue;
             }
             websubhub:ContentDistributionSuccess|websubhub:SubscriptionDeletedError|error distributionResult =
-                hubClientResult->notifyContentDistribution({content: msg.content, contentType: msg.contentType});
+                hubClientResult->notifyContentDistribution({
+                content: serializedContent,
+                contentType: msg.contentType,
+                headers: {"X-Hub-Signature": signature}
+            });
             if distributionResult is error {
                 log:printError("error delivering content to subscriber", distributionResult, callback = subscriber.hubCallback);
             }
@@ -55,14 +72,15 @@ service /websubhub on new websubhub:Listener(hubPort) {
     }
 
     remote function onSubscriptionValidation(websubhub:Subscription msg) returns websubhub:SubscriptionDeniedError? {
-        if !isTopicRegistered(msg.hubTopic) {
-            return error websubhub:SubscriptionDeniedError("topic not registered", statusCode = http:STATUS_NOT_FOUND);
-        }
-        return ();
+        return validateSubscriptionRequest(msg.hubTopic, msg.hubCallback, msg.hubSecret);
     }
 
     remote function onSubscription(websubhub:Subscription msg, http:Headers headers, websubhub:Controller hubController)
-            returns websubhub:SubscriptionAccepted|websubhub:InternalSubscriptionError {
+            returns websubhub:SubscriptionAccepted|websubhub:BadSubscriptionError|websubhub:InternalSubscriptionError {
+        websubhub:SubscriptionDeniedError? validationResult = validateSubscriptionRequest(msg.hubTopic, msg.hubCallback, msg.hubSecret);
+        if validationResult is websubhub:SubscriptionDeniedError {
+            return error websubhub:BadSubscriptionError(validationResult.message(), statusCode = validationResult.detail().statusCode);
+        }
         websubhub:Error? verifiedResult = hubController.markAsVerified(msg);
         if verifiedResult is websubhub:Error {
             return error websubhub:InternalSubscriptionError("error marking subscription as verified", statusCode = http:STATUS_INTERNAL_SERVER_ERROR);
