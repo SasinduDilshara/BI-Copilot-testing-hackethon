@@ -1,6 +1,7 @@
 import ballerina/crypto;
 import ballerina/http;
 import ballerina/lang.regexp;
+import ballerina/time;
 import ballerina/websubhub;
 
 // In-memory store of registered topics.
@@ -8,6 +9,17 @@ map<boolean> registeredTopics = {};
 
 // In-memory store of verified subscriptions, keyed by "topic|callback".
 map<VerifiedSubscriber> verifiedSubscriptions = {};
+
+// In-memory log of delivery attempts made to subscriber callbacks.
+DeliveryAttempt[] deliveryAttempts = [];
+
+// In-memory operational counters for subscriptions and deliveries.
+OperationalCounters operationalCounters = {
+    acceptedSubscriptions: 0,
+    rejectedSubscriptions: 0,
+    successfulDeliveries: 0,
+    failedDeliveries: 0
+};
 
 function subscriptionKey(string topic, string callback) returns string {
     return topic + "|" + callback;
@@ -44,6 +56,42 @@ function getVerifiedSubscriptionsForTopic(string topic) returns VerifiedSubscrib
     return from VerifiedSubscriber subscriber in verifiedSubscriptions
         where subscriber.hubTopic == topic
         select subscriber;
+}
+
+function getRegisteredTopicsList() returns string[] {
+    return registeredTopics.keys();
+}
+
+function getAllVerifiedSubscriptions() returns VerifiedSubscriber[] {
+    return verifiedSubscriptions.toArray();
+}
+
+function removeVerifiedSubscriptionByKey(string topic, string callback) {
+    string key = subscriptionKey(topic, callback);
+    _ = verifiedSubscriptions.removeIfHasKey(key);
+}
+
+function recordAcceptedSubscription() {
+    operationalCounters.acceptedSubscriptions += 1;
+}
+
+function recordRejectedSubscription() {
+    operationalCounters.rejectedSubscriptions += 1;
+}
+
+function recordDeliveryAttempt(string topic, string callback, DeliveryOutcome outcome) {
+    DeliveryAttempt attempt = {
+        topic: topic,
+        callback: callback,
+        timestamp: time:utcToString(time:utcNow()),
+        outcome: outcome
+    };
+    deliveryAttempts.push(attempt);
+    if outcome == DELIVERY_SUCCESS {
+        operationalCounters.successfulDeliveries += 1;
+    } else {
+        operationalCounters.failedDeliveries += 1;
+    }
 }
 
 // Extracts the host (without port) from a callback URL, e.g. "http://example.com:8080/cb" -> "example.com".

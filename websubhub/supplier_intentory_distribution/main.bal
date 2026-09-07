@@ -64,7 +64,14 @@ service /websubhub on new websubhub:Listener(hubPort) {
                 contentType: msg.contentType,
                 headers: {"X-Hub-Signature": signature}
             });
-            if distributionResult is error {
+            if distributionResult is websubhub:ContentDistributionSuccess {
+                recordDeliveryAttempt(topic, subscriber.hubCallback, DELIVERY_SUCCESS);
+            } else if distributionResult is websubhub:SubscriptionDeletedError {
+                recordDeliveryAttempt(topic, subscriber.hubCallback, DELIVERY_SUBSCRIPTION_DELETED);
+                removeVerifiedSubscriptionByKey(topic, subscriber.hubCallback);
+                log:printInfo("subscription removed after gone response", topic = topic, callback = subscriber.hubCallback);
+            } else {
+                recordDeliveryAttempt(topic, subscriber.hubCallback, DELIVERY_TRANSIENT_FAILURE);
                 log:printError("error delivering content to subscriber", distributionResult, callback = subscriber.hubCallback);
             }
         }
@@ -79,6 +86,7 @@ service /websubhub on new websubhub:Listener(hubPort) {
             returns websubhub:SubscriptionAccepted|websubhub:BadSubscriptionError|websubhub:InternalSubscriptionError {
         websubhub:SubscriptionDeniedError? validationResult = validateSubscriptionRequest(msg.hubTopic, msg.hubCallback, msg.hubSecret);
         if validationResult is websubhub:SubscriptionDeniedError {
+            recordRejectedSubscription();
             return error websubhub:BadSubscriptionError(validationResult.message(), statusCode = validationResult.detail().statusCode);
         }
         websubhub:Error? verifiedResult = hubController.markAsVerified(msg);
@@ -90,6 +98,7 @@ service /websubhub on new websubhub:Listener(hubPort) {
 
     remote function onSubscriptionIntentVerified(websubhub:VerifiedSubscription msg) {
         addVerifiedSubscription(msg);
+        recordAcceptedSubscription();
         log:printInfo("subscription verified", topic = msg.hubTopic, callback = msg.hubCallback);
     }
 
@@ -118,7 +127,7 @@ service /websubhub on new websubhub:Listener(hubPort) {
 
 // Publisher-side HTTP endpoint that accepts supplier inventory stock updates and
 // publishes them to the WebSub hub topic.
-service /inventory on new http:Listener(publisherPort) {
+service /inventory on publisherListener {
 
     resource function post updates(@http:Payload StockUpdate stockUpdate) returns http:Ok|http:InternalServerError {
         json payload = stockUpdate.toJson();
@@ -129,5 +138,29 @@ service /inventory on new http:Listener(publisherPort) {
             return <http:InternalServerError>{body: {message: "failed to publish stock update"}};
         }
         return <http:Ok>{body: {message: "stock update published", eventId: stockUpdate.eventId}};
+    }
+}
+
+// Admin HTTP endpoints exposing operational visibility into topics, subscriptions, and deliveries.
+service /admin on publisherListener {
+
+    resource function get topics() returns TopicsAdminView {
+        return {topics: getRegisteredTopicsList()};
+    }
+
+    resource function get subscriptions() returns SubscriptionsAdminView {
+        return {
+            subscriptions: getAllVerifiedSubscriptions(),
+            acceptedSubscriptions: operationalCounters.acceptedSubscriptions,
+            rejectedSubscriptions: operationalCounters.rejectedSubscriptions
+        };
+    }
+
+    resource function get deliveries() returns DeliveriesAdminView {
+        return {
+            deliveries: deliveryAttempts,
+            successfulDeliveries: operationalCounters.successfulDeliveries,
+            failedDeliveries: operationalCounters.failedDeliveries
+        };
     }
 }

@@ -8,6 +8,8 @@ const string TEST_CALLBACK = "http://localhost:9210/callback";
 const string DISALLOWED_CALLBACK = "http://disallowed-host.example.com:9999/callback";
 const string UNKNOWN_TOPIC = "http://localhost:9200/inventory/updates/unknown-topic";
 const string WRONG_SECRET = "wrong-secret-value";
+const string TRANSIENT_CALLBACK = "http://localhost:9220/transient-callback";
+const string GONE_CALLBACK = "http://localhost:9230/gone-callback";
 
 final http:Client hubHttpClient = check new (string `http://localhost:${hubPort.toString()}/websubhub`);
 final websubhub:PublisherClient testPublisherClient = check new (hubUrl);
@@ -45,6 +47,26 @@ service /callback on new http:Listener(9210) {
         existingValidity.push(signatureValid);
         receivedSignatureValidity[TEST_CALLBACK] = existingValidity;
         return {body: "notified"};
+    }
+}
+
+// Mock subscriber callback that always responds with a transient (HTTP 500) failure.
+service /transient\-callback on new http:Listener(9220) {
+
+    resource function post .(http:Caller caller) returns error? {
+        http:Response response = new;
+        response.statusCode = http:STATUS_INTERNAL_SERVER_ERROR;
+        check caller->respond(response);
+    }
+}
+
+// Mock subscriber callback that always responds with HTTP 410 Gone, simulating a deleted subscription.
+service /gone\-callback on new http:Listener(9230) {
+
+    resource function post .(http:Caller caller) returns error? {
+        http:Response response = new;
+        response.statusCode = http:STATUS_GONE;
+        check caller->respond(response);
     }
 }
 
@@ -156,6 +178,108 @@ function testPublicationAndDelivery() returns error? {
 
 @test:Config {
     dependsOn: [testPublicationAndDelivery]
+}
+function testSuccessfulDeliveryIsRecorded() returns error? {
+    test:assertTrue(operationalCounters.successfulDeliveries > 0, msg = "Successful delivery counter should be greater than zero");
+
+    DeliveryAttempt[] successAttempts = from DeliveryAttempt attempt in deliveryAttempts
+        where attempt.topic == topicUrl && attempt.callback == TEST_CALLBACK && attempt.outcome == DELIVERY_SUCCESS
+        select attempt;
+    test:assertTrue(successAttempts.length() > 0, msg = "A successful delivery attempt should have been recorded for the verified subscriber");
+}
+
+@test:Config {
+    dependsOn: [testSuccessfulDeliveryIsRecorded]
+}
+function testTransientDeliveryFailureRetainsSubscription() returns error? {
+    string formPayload = string `hub.mode=subscribe&hub.topic=${topicUrl}&hub.callback=${TRANSIENT_CALLBACK}&hub.secret=${subscriptionSecret}&hub.lease_seconds=${leaseSeconds.toString()}`;
+    http:Response subscribeResponse = check hubHttpClient->post("", formPayload, mediaType = "application/x-www-form-urlencoded");
+    test:assertEquals(subscribeResponse.statusCode, http:STATUS_ACCEPTED, msg = "Subscription request should be accepted");
+
+    runtime:sleep(2);
+    string key = subscriptionKey(topicUrl, TRANSIENT_CALLBACK);
+    test:assertTrue(verifiedSubscriptions.hasKey(key), msg = "Subscription should be tracked as verified before publishing");
+
+    int failedDeliveriesBefore = operationalCounters.failedDeliveries;
+    StockUpdate stockUpdate = {
+        eventId: "evt-002",
+        sku: "SKU-5678",
+        warehouseId: "WH-02",
+        availableQuantity: 75,
+        occurredAt: "2026-09-07T09:00:00Z"
+    };
+    http:Client publisherHttpClient = check new (string `http://localhost:${publisherPort.toString()}`);
+    http:Response publishResponse = check publisherHttpClient->post("/inventory/updates", stockUpdate);
+    test:assertEquals(publishResponse.statusCode, http:STATUS_OK, msg = "Publishing stock update should succeed");
+
+    runtime:sleep(2);
+    test:assertTrue(verifiedSubscriptions.hasKey(key), msg = "Subscription should be retained after a transient delivery failure");
+    test:assertTrue(operationalCounters.failedDeliveries > failedDeliveriesBefore, msg = "Failed delivery counter should have increased");
+
+    DeliveryAttempt[] transientAttempts = from DeliveryAttempt attempt in deliveryAttempts
+        where attempt.topic == topicUrl && attempt.callback == TRANSIENT_CALLBACK && attempt.outcome == DELIVERY_TRANSIENT_FAILURE
+        select attempt;
+    test:assertTrue(transientAttempts.length() > 0, msg = "A transient failure delivery attempt should have been recorded");
+}
+
+@test:Config {
+    dependsOn: [testTransientDeliveryFailureRetainsSubscription]
+}
+function testHttp410RemovesSubscription() returns error? {
+    string formPayload = string `hub.mode=subscribe&hub.topic=${topicUrl}&hub.callback=${GONE_CALLBACK}&hub.secret=${subscriptionSecret}&hub.lease_seconds=${leaseSeconds.toString()}`;
+    http:Response subscribeResponse = check hubHttpClient->post("", formPayload, mediaType = "application/x-www-form-urlencoded");
+    test:assertEquals(subscribeResponse.statusCode, http:STATUS_ACCEPTED, msg = "Subscription request should be accepted");
+
+    runtime:sleep(2);
+    string key = subscriptionKey(topicUrl, GONE_CALLBACK);
+    test:assertTrue(verifiedSubscriptions.hasKey(key), msg = "Subscription should be tracked as verified before publishing");
+
+    int failedDeliveriesBefore = operationalCounters.failedDeliveries;
+    StockUpdate stockUpdate = {
+        eventId: "evt-003",
+        sku: "SKU-9999",
+        warehouseId: "WH-03",
+        availableQuantity: 10,
+        occurredAt: "2026-09-07T10:00:00Z"
+    };
+    http:Client publisherHttpClient = check new (string `http://localhost:${publisherPort.toString()}`);
+    http:Response publishResponse = check publisherHttpClient->post("/inventory/updates", stockUpdate);
+    test:assertEquals(publishResponse.statusCode, http:STATUS_OK, msg = "Publishing stock update should succeed");
+
+    runtime:sleep(2);
+    test:assertFalse(verifiedSubscriptions.hasKey(key), msg = "Subscription should be removed after an HTTP 410 response");
+    test:assertTrue(operationalCounters.failedDeliveries > failedDeliveriesBefore, msg = "Failed delivery counter should have increased");
+
+    DeliveryAttempt[] deletedAttempts = from DeliveryAttempt attempt in deliveryAttempts
+        where attempt.topic == topicUrl && attempt.callback == GONE_CALLBACK && attempt.outcome == DELIVERY_SUBSCRIPTION_DELETED
+        select attempt;
+    test:assertTrue(deletedAttempts.length() > 0, msg = "A subscription-deleted delivery attempt should have been recorded");
+}
+
+@test:Config {
+    dependsOn: [testHttp410RemovesSubscription]
+}
+function testAdminViews() returns error? {
+    http:Client adminHttpClient = check new (string `http://localhost:${publisherPort.toString()}`);
+
+    TopicsAdminView topicsView = check adminHttpClient->get("/admin/topics");
+    test:assertTrue(topicsView.topics.indexOf(topicUrl) is int, msg = "Registered topic should appear in the admin topics view");
+
+    SubscriptionsAdminView subscriptionsView = check adminHttpClient->get("/admin/subscriptions");
+    VerifiedSubscriber[] matchingSubscriptions = from VerifiedSubscriber subscriber in subscriptionsView.subscriptions
+        where subscriber.hubCallback == TEST_CALLBACK
+        select subscriber;
+    test:assertTrue(matchingSubscriptions.length() > 0, msg = "Verified subscriber should appear in the admin subscriptions view");
+    test:assertTrue(subscriptionsView.acceptedSubscriptions > 0, msg = "Accepted subscriptions counter should be greater than zero");
+
+    DeliveriesAdminView deliveriesView = check adminHttpClient->get("/admin/deliveries");
+    test:assertTrue(deliveriesView.deliveries.length() > 0, msg = "Admin deliveries view should list recorded delivery attempts");
+    test:assertTrue(deliveriesView.successfulDeliveries > 0, msg = "Admin deliveries view should reflect successful delivery count");
+    test:assertTrue(deliveriesView.failedDeliveries > 0, msg = "Admin deliveries view should reflect failed delivery count");
+}
+
+@test:Config {
+    dependsOn: [testAdminViews]
 }
 function testUnsubscription() returns error? {
     string formPayload = string `hub.mode=unsubscribe&hub.topic=${topicUrl}&hub.callback=${TEST_CALLBACK}`;
