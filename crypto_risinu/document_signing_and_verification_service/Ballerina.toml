@@ -1,0 +1,9 @@
+[package]
+org = "risinutest"
+name = "document_signing_and_verification_service"
+version = "0.1.0"
+distribution = "2201.13.0"
+title = "Document signing and verification service"
+
+[build-options]
+sticky = true

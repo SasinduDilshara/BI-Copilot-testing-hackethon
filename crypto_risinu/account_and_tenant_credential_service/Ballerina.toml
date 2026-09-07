@@ -1,0 +1,9 @@
+[package]
+org = "risinutest"
+name = "account_and_tenant_credential_service"
+version = "0.1.0"
+distribution = "2201.13.5"
+title = "Account and tenant credential service"
+
+[build-options]
+sticky = false
