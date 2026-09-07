@@ -132,46 +132,87 @@ function testCheckCompatibilityRejectsNewFieldWithoutDefault() returns error? {
 }
 
 @test:Config {}
-function testPromoteRejectsIncompatibleCandidateWithoutChangingActiveVersion() returns error? {
-    string activeSchemaBeforePromotion = getActiveCustomerProfileSchema();
-    int auditLogSizeBeforePromotion = getPromotionAuditLog().length();
+function testValidateFlagsIncompatibleCandidateWithoutChangingActiveVersion() returns error? {
+    string activeSchemaBeforeValidation = getActiveCustomerProfileSchema();
+    int validationHistorySizeBeforeValidation = getCompatibilityValidationHistory().length();
 
-    PromotionDecision|PromotionError result = promoteCustomerProfileSchema(incompatibleCandidateSchemaMissingRequiredField);
+    CompatibilityValidationRecord|ValidationOperationError result =
+        validateCustomerProfileSchemaCompatibility(incompatibleCandidateSchemaMissingRequiredField);
 
-    if result is PromotionError {
+    if result is ValidationOperationError {
         test:assertFail(msg = "an incompatible candidate should still produce a decision, not an error");
     }
-    PromotionDecision decision = result;
-    test:assertEquals(decision.outcome, "REJECTED", msg = "an incompatible candidate should be rejected");
-    test:assertEquals(decision.schemaId, (), msg = "a rejected candidate should not be assigned a schema id");
-    test:assertEquals(decision.subject, customerProfileValueSubject, msg = "the decision should be recorded against the customer-profile-value subject");
+    CompatibilityValidationRecord validationRecord = result;
+    test:assertEquals(validationRecord.outcome, "INCOMPATIBLE", msg = "an incompatible candidate should be flagged as incompatible");
+    test:assertEquals(validationRecord.subject, customerProfileValueSubject, msg = "the decision should be recorded against the customer-profile-value subject");
 
-    string activeSchemaAfterPromotion = getActiveCustomerProfileSchema();
-    test:assertEquals(activeSchemaAfterPromotion, activeSchemaBeforePromotion,
-            msg = "the active schema must remain unchanged after an incompatible candidate is rejected");
+    string activeSchemaAfterValidation = getActiveCustomerProfileSchema();
+    test:assertEquals(activeSchemaAfterValidation, activeSchemaBeforeValidation,
+            msg = "the active schema must remain unchanged after an incompatible candidate is validated");
 
-    PromotionDecision[] auditLogAfterPromotion = getPromotionAuditLog();
-    test:assertEquals(auditLogAfterPromotion.length(), auditLogSizeBeforePromotion + 1,
-            msg = "a rejection decision should be appended to the audit log");
-    PromotionDecision lastDecision = auditLogAfterPromotion[auditLogAfterPromotion.length() - 1];
-    test:assertEquals(lastDecision.outcome, "REJECTED", msg = "the recorded audit decision should be a rejection");
-    test:assertEquals(lastDecision.candidateSchema, incompatibleCandidateSchemaMissingRequiredField,
-            msg = "the recorded audit decision should reference the evaluated candidate schema");
+    CompatibilityValidationRecord[] validationHistoryAfterValidation = getCompatibilityValidationHistory();
+    test:assertEquals(validationHistoryAfterValidation.length(), validationHistorySizeBeforeValidation + 1,
+            msg = "a validation decision should be appended to the validation history");
+    CompatibilityValidationRecord lastValidationRecord =
+        validationHistoryAfterValidation[validationHistoryAfterValidation.length() - 1];
+    test:assertEquals(lastValidationRecord.outcome, "INCOMPATIBLE", msg = "the recorded validation decision should be incompatible");
+    test:assertEquals(lastValidationRecord.candidateSchema, incompatibleCandidateSchemaMissingRequiredField,
+            msg = "the recorded validation decision should reference the evaluated candidate schema");
 }
 
 @test:Config {}
-function testPromoteRejectsCandidateWithChangedFieldTypeWithoutChangingActiveVersion() returns error? {
-    string activeSchemaBeforePromotion = getActiveCustomerProfileSchema();
+function testValidateFlagsCandidateWithChangedFieldTypeWithoutChangingActiveVersion() returns error? {
+    string activeSchemaBeforeValidation = getActiveCustomerProfileSchema();
 
-    PromotionDecision|PromotionError result = promoteCustomerProfileSchema(incompatibleCandidateSchemaWithChangedFieldType);
+    CompatibilityValidationRecord|ValidationOperationError result =
+        validateCustomerProfileSchemaCompatibility(incompatibleCandidateSchemaWithChangedFieldType);
 
-    if result is PromotionError {
+    if result is ValidationOperationError {
         test:assertFail(msg = "an incompatible candidate should still produce a decision, not an error");
     }
-    PromotionDecision decision = result;
-    test:assertEquals(decision.outcome, "REJECTED", msg = "a candidate with an incompatible type change should be rejected");
+    CompatibilityValidationRecord validationRecord = result;
+    test:assertEquals(validationRecord.outcome, "INCOMPATIBLE",
+            msg = "a candidate with an incompatible type change should be flagged as incompatible");
 
-    string activeSchemaAfterPromotion = getActiveCustomerProfileSchema();
-    test:assertEquals(activeSchemaAfterPromotion, activeSchemaBeforePromotion,
-            msg = "the active schema must remain unchanged after rejection");
+    string activeSchemaAfterValidation = getActiveCustomerProfileSchema();
+    test:assertEquals(activeSchemaAfterValidation, activeSchemaBeforeValidation,
+            msg = "the active schema must remain unchanged after validation");
+}
+
+@test:Config {}
+function testValidateNeverMutatesActiveSchemaEvenWhenCandidateIsCompatible() returns error? {
+    string activeSchemaBeforeValidation = getActiveCustomerProfileSchema();
+    int validationHistorySizeBeforeValidation = getCompatibilityValidationHistory().length();
+
+    CompatibilityValidationRecord|ValidationOperationError result =
+        validateCustomerProfileSchemaCompatibility(compatibleCandidateSchemaWithNewDefaultedField);
+
+    if result is ValidationOperationError {
+        test:assertFail(msg = "a compatible candidate should still produce a decision, not an error");
+    }
+    CompatibilityValidationRecord validationRecord = result;
+    test:assertEquals(validationRecord.outcome, "COMPATIBLE", msg = "a compatible candidate should be flagged as compatible");
+
+    // This is the key proof: even though the candidate is compatible, validation is read-only and must
+    // never register the schema or promote it to become the active schema.
+    string activeSchemaAfterValidation = getActiveCustomerProfileSchema();
+    test:assertEquals(activeSchemaAfterValidation, activeSchemaBeforeValidation,
+            msg = "the active schema must remain unchanged even when the candidate is found compatible");
+    test:assertNotEquals(activeSchemaAfterValidation, compatibleCandidateSchemaWithNewDefaultedField,
+            msg = "the candidate schema must never become the active schema as a result of validation");
+
+    CompatibilityValidationRecord[] validationHistoryAfterValidation = getCompatibilityValidationHistory();
+    test:assertEquals(validationHistoryAfterValidation.length(), validationHistorySizeBeforeValidation + 1,
+            msg = "a compatible decision should still be appended to the validation history");
+    CompatibilityValidationRecord lastValidationRecord =
+        validationHistoryAfterValidation[validationHistoryAfterValidation.length() - 1];
+    test:assertEquals(lastValidationRecord.outcome, "COMPATIBLE", msg = "the recorded validation decision should be compatible");
+    test:assertEquals(lastValidationRecord.candidateSchema, compatibleCandidateSchemaWithNewDefaultedField,
+            msg = "the recorded validation decision should reference the evaluated candidate schema");
+
+    // Repeating the lookup independently confirms the active schema lookup itself is stable and
+    // unaffected by any number of validation calls.
+    string activeSchemaOnRepeatLookup = getActiveCustomerProfileSchema();
+    test:assertEquals(activeSchemaOnRepeatLookup, activeSchemaBeforeValidation,
+            msg = "repeated lookups of the active schema must remain stable after validation calls");
 }

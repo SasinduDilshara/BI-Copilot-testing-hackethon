@@ -54,35 +54,34 @@ public type PublishError distinct error;
 # Error raised when consuming messages from Kafka fails.
 public type ConsumeError distinct error;
 
-# Error raised when a schema promotion operation fails unexpectedly (e.g. registry unreachable).
-public type PromotionError distinct error;
+# Error raised when a schema compatibility validation operation fails unexpectedly (e.g. malformed schema).
+public type ValidationOperationError distinct error;
 
-# Error raised when a candidate schema is rejected due to an incompatibility with the active schema.
+# Error raised when a candidate schema is found incompatible with the active schema.
 public type IncompatibleSchemaError distinct error;
 
-# Outcome of a schema promotion decision, used as the audit record.
-public type PromotionOutcome "APPROVED"|"REJECTED";
+# Outcome of a schema compatibility validation, used as the audit record.
+public type CompatibilityOutcome "COMPATIBLE"|"INCOMPATIBLE";
 
-# Represents the audit record of a schema promotion decision for a subject.
+# Represents the audit record of a schema compatibility validation decision for a subject.
+# This is a read-only check: it never registers a schema or changes the active version.
 #
-# + subject - The schema registry subject the decision applies to
-# + outcome - Whether the candidate schema was approved and promoted, or rejected
+# + subject - The schema registry subject the candidate was evaluated against
+# + outcome - Whether the candidate schema was found compatible or incompatible with the active schema
 # + reason - Human-readable explanation of the decision
-# + schemaId - The registry schema id assigned on approval, absent when rejected
 # + candidateSchema - The candidate schema that was evaluated
 # + decidedAt - The UTC timestamp at which the decision was made
-public type PromotionDecision record {|
+public type CompatibilityValidationRecord record {|
     string subject;
-    PromotionOutcome outcome;
+    CompatibilityOutcome outcome;
     string reason;
-    int? schemaId;
     string candidateSchema;
     string decidedAt;
 |};
 
-# Request payload for promoting a candidate `CustomerProfile` Avro schema.
+# Request payload for validating a candidate `CustomerProfile` Avro schema against the active schema.
 #
-# + candidateSchema - The candidate Avro schema, in JSON `string` format, to evaluate and promote
-public type PromotionRequest record {|
+# + candidateSchema - The candidate Avro schema, in JSON `string` format, to validate for compatibility
+public type CompatibilityValidationRequest record {|
     string candidateSchema;
 |};

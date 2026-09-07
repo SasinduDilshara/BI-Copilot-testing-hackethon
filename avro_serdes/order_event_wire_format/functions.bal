@@ -2,7 +2,6 @@ import ballerina/avro;
 import ballerina/log;
 import ballerina/time;
 import ballerinax/confluent.cavroserdes;
-import ballerinax/confluent.cregistry;
 import ballerinax/kafka;
 
 # Validates the required business fields of a `CustomerProfile` before serialization.
@@ -167,70 +166,67 @@ function checkAvroSchemaCompatibility(string activeSchema, string candidateSchem
     return;
 }
 
-# Registers a candidate `CustomerProfile` Avro schema under the `customer-profile-value` subject only when it is
-# compatible with the currently active schema, recording an audit decision either way. Incompatible candidates are
-# rejected without registering the schema or changing the active version.
+# Performs a read-only compatibility validation of a candidate `CustomerProfile` Avro schema against the
+# currently active schema, recording a validation decision either way. This never registers the candidate
+# schema with the schema registry and never changes the active schema version - it is purely a lookup and
+# validation operation.
 #
-# + candidateSchema - The candidate Avro schema to evaluate for promotion
-# + return - The recorded `PromotionDecision`, or a `PromotionError` if the operation fails unexpectedly
-public function promoteCustomerProfileSchema(string candidateSchema) returns PromotionDecision|PromotionError {
+# + candidateSchema - The candidate Avro schema to validate for compatibility
+# + return - The recorded `CompatibilityValidationRecord`, or a `ValidationOperationError` if the operation
+# fails unexpectedly
+public function validateCustomerProfileSchemaCompatibility(string candidateSchema)
+        returns CompatibilityValidationRecord|ValidationOperationError {
     _ = check validateAvroSchemaParses(candidateSchema);
 
     string activeSchema = getActiveCustomerProfileSchema();
 
     string?|error compatibilityResult = checkAvroSchemaCompatibility(activeSchema, candidateSchema);
     if compatibilityResult is error {
-        return error PromotionError("failed to evaluate schema compatibility", compatibilityResult);
+        return error ValidationOperationError("failed to evaluate schema compatibility", compatibilityResult);
     }
 
     string decidedAt = time:utcToString(time:utcNow());
 
     if compatibilityResult is string {
-        PromotionDecision decision = {
+        CompatibilityValidationRecord validationRecord = {
             subject: customerProfileValueSubject,
-            outcome: "REJECTED",
+            outcome: "INCOMPATIBLE",
             reason: compatibilityResult,
-            schemaId: (),
             candidateSchema,
             decidedAt
         };
-        recordPromotionDecision(decision);
-        log:printWarn("rejected incompatible customer profile schema candidate", reason = compatibilityResult);
-        return decision;
+        recordCompatibilityValidation(validationRecord);
+        log:printWarn("candidate customer profile schema is incompatible with the active schema",
+                reason = compatibilityResult);
+        return validationRecord;
     }
 
-    int|cregistry:Error registerResult = schemaRegistryClient->register(customerProfileValueSubject, candidateSchema);
-    if registerResult is cregistry:Error {
-        return error PromotionError("failed to register candidate schema with schema registry", registerResult);
-    }
-
-    PromotionDecision decision = {
+    CompatibilityValidationRecord validationRecord = {
         subject: customerProfileValueSubject,
-        outcome: "APPROVED",
+        outcome: "COMPATIBLE",
         reason: "candidate schema is compatible with the active schema",
-        schemaId: registerResult,
         candidateSchema,
         decidedAt
     };
-    setActiveCustomerProfileSchema(candidateSchema);
-    recordPromotionDecision(decision);
-    log:printInfo("promoted customer profile schema", schemaId = registerResult);
-    return decision;
+    recordCompatibilityValidation(validationRecord);
+    log:printInfo("candidate customer profile schema is compatible with the active schema");
+    return validationRecord;
 }
 
 # Validates that the given Avro schema `string` parses as a valid Avro schema.
 #
 # + schema - The Avro schema to validate
-# + return - `true` if valid, or a `PromotionError` if the schema is invalid
-function validateAvroSchemaParses(string schema) returns boolean|PromotionError {
+# + return - `true` if valid, or a `ValidationOperationError` if the schema is invalid
+function validateAvroSchemaParses(string schema) returns boolean|ValidationOperationError {
     avro:Schema|error parsed = new (schema);
     if parsed is error {
-        return error PromotionError("candidate schema is not a valid Avro schema", parsed);
+        return error ValidationOperationError("candidate schema is not a valid Avro schema", parsed);
     }
     return true;
 }
 
-# Returns the currently active `CustomerProfile` Avro schema.
+# Returns the currently active `CustomerProfile` Avro schema. This is the single source of truth for the
+# active schema and is never mutated by compatibility validation.
 #
 # + return - The active Avro schema `string`
 public isolated function getActiveCustomerProfileSchema() returns string {
@@ -239,29 +235,20 @@ public isolated function getActiveCustomerProfileSchema() returns string {
     }
 }
 
-# Updates the currently active `CustomerProfile` Avro schema.
+# Appends a compatibility validation decision to the in-memory validation history.
 #
-# + newSchema - The new schema to set as active
-isolated function setActiveCustomerProfileSchema(string newSchema) {
+# + validationRecord - The validation record to record
+isolated function recordCompatibilityValidation(CompatibilityValidationRecord validationRecord) {
     lock {
-        activeCustomerProfileSchema = newSchema;
+        compatibilityValidationHistory.push(validationRecord.clone());
     }
 }
 
-# Appends a promotion decision to the in-memory audit log.
+# Returns a snapshot of all recorded schema compatibility validation decisions.
 #
-# + decision - The decision to record
-isolated function recordPromotionDecision(PromotionDecision decision) {
+# + return - An array of recorded `CompatibilityValidationRecord` entries
+public isolated function getCompatibilityValidationHistory() returns CompatibilityValidationRecord[] {
     lock {
-        promotionAuditLog.push(decision.clone());
-    }
-}
-
-# Returns a snapshot of all recorded schema promotion decisions.
-#
-# + return - An array of recorded `PromotionDecision` records
-public isolated function getPromotionAuditLog() returns PromotionDecision[] {
-    lock {
-        return promotionAuditLog.clone();
+        return compatibilityValidationHistory.clone();
     }
 }
