@@ -1,0 +1,9 @@
+[package]
+org = "gayaldassanayake"
+name = "supplier_intentory_distribution"
+version = "0.1.0"
+distribution = "2201.13.6"
+title = "supplier-intentory-distribution"
+
+[build-options]
+sticky = true
