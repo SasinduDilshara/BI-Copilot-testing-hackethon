@@ -1,0 +1,3 @@
+[workspace]
+title = "avro-serdes"
+packages = ["order_event_wire_format"]
