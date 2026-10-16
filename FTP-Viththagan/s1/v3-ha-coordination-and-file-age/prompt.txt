@@ -1,0 +1,1 @@
+We now run three instances of this listener for resilience, but they must not all pick up the same file — configure distributed coordination so only one actively polls while the others are warm standby. Also make sure we never grab a file that's still being uploaded by only processing files older than 30 seconds.
