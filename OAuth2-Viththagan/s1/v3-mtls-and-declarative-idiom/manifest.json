@@ -1,0 +1,18 @@
+{
+  "n": 3,
+  "label": "mtls-and-declarative-idiom",
+  "settled": true,
+  "approvals": 0,
+  "reviewOpened": false,
+  "reviewCards": [],
+  "reviewViews": [],
+  "tools": [
+    "LibrarySearchTool",
+    "LibraryGetTool",
+    "file_write",
+    "getCompilationErrors",
+    "file_edit",
+    "file_read"
+  ],
+  "chatScreenshots": 5
+}

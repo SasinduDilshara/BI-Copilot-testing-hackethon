@@ -1,0 +1,14 @@
+{
+  "modifiedFiles": [
+    "config.bal",
+    "connections.bal"
+  ],
+  "semanticDiffs": [],
+  "loadDesignDiagrams": true,
+  "affectedPackages": [
+    "/var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/oauth2-capture"
+  ],
+  "isWorkspace": false,
+  "diffPackageMap": [],
+  "generationId": "msg-1787631347247-6h189v604"
+}

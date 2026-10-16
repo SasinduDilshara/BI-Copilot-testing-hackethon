@@ -1,0 +1,43 @@
+{
+  "n": 1,
+  "label": "client-credentials-grant",
+  "settled": true,
+  "approvals": 0,
+  "reviewOpened": true,
+  "reviewCards": [
+    "resource GET lookup + Added"
+  ],
+  "reviewViews": [
+    {
+      "index": 1,
+      "label": "Design Diagram",
+      "slug": "design-diagram",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/oauth2-captures/oauth2-capture-20260825-094706/s1/v1-client-credentials-grant/review-views/view-01-design-diagram"
+    },
+    {
+      "index": 2,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-get-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/oauth2-captures/oauth2-capture-20260825-094706/s1/v1-client-credentials-grant/review-views/view-02-addition-get-main"
+    }
+  ],
+  "tools": [
+    "LibrarySearchTool",
+    "LibraryGetTool",
+    "file_write",
+    "getCompilationErrors",
+    "file_edit",
+    "file_read"
+  ],
+  "chatScreenshots": 2
+}

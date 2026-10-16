@@ -1,0 +1,40 @@
+{
+  "modifiedFiles": [
+    "types.bal",
+    "config.bal",
+    "connections.bal",
+    "main.bal"
+  ],
+  "semanticDiffs": [
+    {
+      "changeType": 0,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/oauth2-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 8,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 17,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "get",
+        "servicePath": "/partner",
+        "resourcePath": "lookup"
+      }
+    }
+  ],
+  "loadDesignDiagrams": true,
+  "affectedPackages": [
+    "/var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/oauth2-capture"
+  ],
+  "isWorkspace": false,
+  "diffPackageMap": [
+    "oauth2-capture"
+  ],
+  "generationId": "msg-1787630983337-mniqdznha"
+}
