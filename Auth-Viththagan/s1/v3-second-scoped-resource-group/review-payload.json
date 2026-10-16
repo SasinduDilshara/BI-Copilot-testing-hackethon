@@ -1,0 +1,37 @@
+{
+  "modifiedFiles": [
+    "main.bal"
+  ],
+  "semanticDiffs": [
+    {
+      "changeType": 0,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/auth-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 38,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 51,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "get",
+        "servicePath": "/reports",
+        "resourcePath": "summary"
+      }
+    }
+  ],
+  "loadDesignDiagrams": true,
+  "affectedPackages": [
+    "/var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/auth-capture"
+  ],
+  "isWorkspace": false,
+  "diffPackageMap": [
+    "auth-capture"
+  ],
+  "generationId": "msg-1787580698560-sviz6v4nw"
+}

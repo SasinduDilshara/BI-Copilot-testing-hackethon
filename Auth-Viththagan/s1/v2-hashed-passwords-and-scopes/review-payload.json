@@ -1,0 +1,186 @@
+{
+  "modifiedFiles": [
+    "types.bal",
+    "connections.bal",
+    "functions.bal",
+    "main.bal"
+  ],
+  "semanticDiffs": [
+    {
+      "changeType": 2,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/auth-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 21,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 33,
+          "offset": 5
+        }
+      },
+      "previousLineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 31,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 53,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "get",
+        "servicePath": "/admin",
+        "resourcePath": "profile/scopes"
+      }
+    },
+    {
+      "changeType": 2,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/auth-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 6,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 19,
+          "offset": 5
+        }
+      },
+      "previousLineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 6,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 29,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "get",
+        "servicePath": "/admin",
+        "resourcePath": "dashboard"
+      }
+    },
+    {
+      "changeType": 2,
+      "nodeKind": 0,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/auth-capture/functions.bal",
+      "lineRange": {
+        "fileName": "functions.bal",
+        "startLine": {
+          "line": 6,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 31,
+          "offset": 1
+        }
+      },
+      "previousLineRange": {
+        "fileName": "functions.bal",
+        "startLine": {
+          "line": 4,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 24,
+          "offset": 1
+        }
+      },
+      "metadata": {
+        "name": "extractBasicCredential"
+      }
+    },
+    {
+      "changeType": 2,
+      "nodeKind": 0,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/auth-capture/functions.bal",
+      "lineRange": {
+        "fileName": "functions.bal",
+        "startLine": {
+          "line": 33,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 68,
+          "offset": 1
+        }
+      },
+      "previousLineRange": {
+        "fileName": "functions.bal",
+        "startLine": {
+          "line": 26,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 37,
+          "offset": 1
+        }
+      },
+      "metadata": {
+        "name": "authenticateUser"
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 0,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/auth-capture/functions.bal",
+      "lineRange": {
+        "fileName": "functions.bal",
+        "startLine": {
+          "line": 98,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 125,
+          "offset": 1
+        }
+      },
+      "metadata": {
+        "name": "authenticateAndAuthorize"
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 2,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/auth-capture/types.bal",
+      "lineRange": {
+        "fileName": "types.bal",
+        "startLine": {
+          "line": 7,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 13,
+          "offset": 3
+        }
+      },
+      "metadata": {
+        "name": "HashedUserStoreEntry"
+      }
+    }
+  ],
+  "loadDesignDiagrams": true,
+  "affectedPackages": [
+    "/var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/auth-capture"
+  ],
+  "isWorkspace": false,
+  "diffPackageMap": [
+    "auth-capture",
+    "auth-capture",
+    "auth-capture",
+    "auth-capture",
+    "auth-capture",
+    "auth-capture"
+  ],
+  "generationId": "msg-1787579926203-8jnb71mt2"
+}

@@ -1,0 +1,104 @@
+{
+  "n": 1,
+  "label": "file-user-store-basic-auth",
+  "settled": true,
+  "approvals": 1,
+  "reviewOpened": true,
+  "reviewCards": [
+    "resource GET profile/scopes + Added",
+    "resource GET dashboard + Added",
+    "function extractBasicCredential + Added",
+    "function authorizeUser + Added",
+    "function authenticateUser + Added",
+    "Types + Added"
+  ],
+  "reviewViews": [
+    {
+      "index": 1,
+      "label": "Design Diagram",
+      "slug": "design-diagram",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/auth-captures/auth-capture-20260824-194444/s1/v1-file-user-store-basic-auth/review-views/view-01-design-diagram"
+    },
+    {
+      "index": 2,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-get-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/auth-captures/auth-capture-20260824-194444/s1/v1-file-user-store-basic-auth/review-views/view-02-addition-get-main"
+    },
+    {
+      "index": 3,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-get-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/auth-captures/auth-capture-20260824-194444/s1/v1-file-user-store-basic-auth/review-views/view-03-addition-get-main"
+    },
+    {
+      "index": 4,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-extractbasiccredential-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/auth-captures/auth-capture-20260824-194444/s1/v1-file-user-store-basic-auth/review-views/view-04-addition-extractbasiccredential-functions"
+    },
+    {
+      "index": 5,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-authorizeuser-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/auth-captures/auth-capture-20260824-194444/s1/v1-file-user-store-basic-auth/review-views/view-05-addition-authorizeuser-functions"
+    },
+    {
+      "index": 6,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-authenticateuser-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/auth-captures/auth-capture-20260824-194444/s1/v1-file-user-store-basic-auth/review-views/view-06-addition-authenticateuser-functions"
+    },
+    {
+      "index": 7,
+      "label": "addition: type in types.bal",
+      "slug": "addition-adminuser-types",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/auth-captures/auth-capture-20260824-194444/s1/v1-file-user-store-basic-auth/review-views/view-07-addition-adminuser-types"
+    }
+  ],
+  "tools": [
+    "LibrarySearchTool",
+    "LibraryGetTool",
+    "web_search",
+    "file_read",
+    "file_write",
+    "getCompilationErrors",
+    "file_edit"
+  ],
+  "chatScreenshots": 5
+}

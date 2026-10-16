@@ -1,0 +1,1 @@
+Add a second protected resource group /reports/** that requires a finance scope, reusing the same file-user-store authentication already in place without duplicating the credential-extraction and scope-check logic — factor it into one reusable check.
