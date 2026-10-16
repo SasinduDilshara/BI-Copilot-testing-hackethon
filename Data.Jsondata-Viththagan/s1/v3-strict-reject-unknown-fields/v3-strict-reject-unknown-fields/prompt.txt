@@ -1,0 +1,1 @@
+Add a second, stricter endpoint for regulated partners that must reject any unknown/extra field in the payload instead of silently dropping it. Explain plainly how you configure data.jsondata to do that and how its behavior differs from the lenient endpoint we already have.
