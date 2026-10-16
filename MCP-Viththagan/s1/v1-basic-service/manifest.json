@@ -1,0 +1,114 @@
+{
+  "n": 1,
+  "label": "basic-service",
+  "settled": true,
+  "approvals": 0,
+  "reviewOpened": true,
+  "reviewCards": [
+    "resource GETSERVICESTATUS + Added",
+    "resource RESTARTSERVICE + Added",
+    "resource LISTRECENTDEPLOYMENTS + Added",
+    "function findServiceStatus + Added",
+    "function findRecentDeployments + Added",
+    "function triggerServiceRestart + Added",
+    "Types + Added"
+  ],
+  "reviewViews": [
+    {
+      "index": 1,
+      "label": "Design Diagram",
+      "slug": "design-diagram",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v1-basic-service/review-views/view-01-design-diagram"
+    },
+    {
+      "index": 2,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-getservicestatus-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v1-basic-service/review-views/view-02-addition-getservicestatus-main"
+    },
+    {
+      "index": 3,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-restartservice-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v1-basic-service/review-views/view-03-addition-restartservice-main"
+    },
+    {
+      "index": 4,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-listrecentdeployments-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v1-basic-service/review-views/view-04-addition-listrecentdeployments-main"
+    },
+    {
+      "index": 5,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-findservicestatus-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v1-basic-service/review-views/view-05-addition-findservicestatus-functions"
+    },
+    {
+      "index": 6,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-findrecentdeployments-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v1-basic-service/review-views/view-06-addition-findrecentdeployments-functions"
+    },
+    {
+      "index": 7,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-triggerservicerestart-functions",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v1-basic-service/review-views/view-07-addition-triggerservicerestart-functions"
+    },
+    {
+      "index": 8,
+      "label": "addition: type in types.bal",
+      "slug": "addition-deploymentrecord+servicestatus+restartresult-types",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v1-basic-service/review-views/view-08-addition-deploymentrecord+servicestatus+restartresult-types"
+    }
+  ],
+  "tools": [
+    "LibrarySearchTool",
+    "LibraryGetTool",
+    "file_write",
+    "getCompilationErrors",
+    "file_read"
+  ],
+  "chatScreenshots": 3
+}

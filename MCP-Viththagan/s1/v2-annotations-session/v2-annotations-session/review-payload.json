@@ -1,0 +1,121 @@
+{
+  "modifiedFiles": [
+    "types.bal",
+    "functions.bal",
+    "main.bal"
+  ],
+  "semanticDiffs": [
+    {
+      "changeType": 0,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/mcp-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 69,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 78,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "getMaintenanceWindow",
+        "servicePath": "/mcp",
+        "resourcePath": ""
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 1,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/mcp-capture/main.bal",
+      "lineRange": {
+        "fileName": "main.bal",
+        "startLine": {
+          "line": 52,
+          "offset": 4
+        },
+        "endLine": {
+          "line": 67,
+          "offset": 5
+        }
+      },
+      "metadata": {
+        "accessor": "startMaintenanceWindow",
+        "servicePath": "/mcp",
+        "resourcePath": ""
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 0,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/mcp-capture/functions.bal",
+      "lineRange": {
+        "fileName": "functions.bal",
+        "startLine": {
+          "line": 98,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 107,
+          "offset": 1
+        }
+      },
+      "metadata": {
+        "name": "readMaintenanceWindow"
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 0,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/mcp-capture/functions.bal",
+      "lineRange": {
+        "fileName": "functions.bal",
+        "startLine": {
+          "line": 74,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 96,
+          "offset": 1
+        }
+      },
+      "metadata": {
+        "name": "openMaintenanceWindow"
+      }
+    },
+    {
+      "changeType": 0,
+      "nodeKind": 2,
+      "uri": "ai:///var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/mcp-capture/types.bal",
+      "lineRange": {
+        "fileName": "types.bal",
+        "startLine": {
+          "line": 39,
+          "offset": 0
+        },
+        "endLine": {
+          "line": 52,
+          "offset": 3
+        }
+      },
+      "metadata": {
+        "name": "MaintenanceWindow"
+      }
+    }
+  ],
+  "loadDesignDiagrams": true,
+  "affectedPackages": [
+    "/var/folders/xj/w81cp4m11736tp642r4g8wxh0000gn/T/copilot-testing-scripts-workspaces/mcp-capture"
+  ],
+  "isWorkspace": false,
+  "diffPackageMap": [
+    "mcp-capture",
+    "mcp-capture",
+    "mcp-capture",
+    "mcp-capture",
+    "mcp-capture"
+  ],
+  "generationId": "msg-1787569759998-02ewytv71"
+}

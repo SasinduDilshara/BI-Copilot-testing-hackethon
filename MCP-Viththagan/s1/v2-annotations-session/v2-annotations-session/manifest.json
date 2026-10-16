@@ -1,0 +1,114 @@
+{
+  "n": 2,
+  "label": "annotations-session",
+  "settled": true,
+  "approvals": 1,
+  "reviewOpened": true,
+  "reviewCards": [
+    "resource GETMAINTENANCEWINDOW + Added",
+    "resource STARTMAINTENANCEWINDOW + Added",
+    "function readMaintenanceWindow + Added",
+    "function openMaintenanceWindow + Added",
+    "Types + Added"
+  ],
+  "reviewViews": [
+    {
+      "index": 1,
+      "label": "Design Diagram",
+      "slug": "design-diagram",
+      "modes": {
+        "diff": "disabled",
+        "new": "captured",
+        "old": "captured"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v2-annotations-session/review-views/view-01-design-diagram"
+    },
+    {
+      "index": 2,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-getmaintenancewindow-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v2-annotations-session/review-views/view-02-addition-getmaintenancewindow-main"
+    },
+    {
+      "index": 3,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-startmaintenancewindow-main",
+      "modes": {
+        "diff": "captured",
+        "new": "captured",
+        "old": "disabled"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v2-annotations-session/review-views/view-03-addition-startmaintenancewindow-main"
+    },
+    {
+      "index": 4,
+      "label": "addition: resource in main.bal",
+      "slug": "addition-resource-in-main-bal",
+      "modes": {
+        "diff": "captured",
+        "new": "absent",
+        "old": "absent"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v2-annotations-session/review-views/view-04-addition-resource-in-main-bal"
+    },
+    {
+      "index": 5,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-readmaintenancewindow-functions",
+      "modes": {
+        "diff": "absent",
+        "new": "absent",
+        "old": "absent"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v2-annotations-session/review-views/view-05-addition-readmaintenancewindow-functions"
+    },
+    {
+      "index": 6,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-openmaintenancewindow-functions",
+      "modes": {
+        "diff": "absent",
+        "new": "absent",
+        "old": "absent"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v2-annotations-session/review-views/view-06-addition-openmaintenancewindow-functions"
+    },
+    {
+      "index": 7,
+      "label": "addition: function in functions.bal",
+      "slug": "addition-function-in-functions-bal",
+      "modes": {
+        "diff": "absent",
+        "new": "absent",
+        "old": "absent"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v2-annotations-session/review-views/view-07-addition-function-in-functions-bal"
+    },
+    {
+      "index": 8,
+      "label": "addition: type in types.bal",
+      "slug": "addition-maintenancewindow-types",
+      "modes": {
+        "diff": "absent",
+        "new": "absent",
+        "old": "absent"
+      },
+      "dir": "/Users/viththagan/WSO2/wso2-integrator/ballerina-vscode/.internal-works/q3-release-testing/prompt-prep/mcp-captures/mcp-capture-20260824-165755/s1/v2-annotations-session/review-views/view-08-addition-maintenancewindow-types"
+    }
+  ],
+  "tools": [
+    "LibrarySearchTool",
+    "LibraryGetTool",
+    "file_write",
+    "getCompilationErrors",
+    "file_read",
+    "web_search",
+    "file_edit"
+  ],
+  "chatScreenshots": 5
+}
